@@ -13,15 +13,6 @@
 
 # HPACK - header compression package
 
-## Implement huffman coding trie
-
-## Transcribe huffman code from the RFC
-
-## Implement octet string encoding and decoding.
-* Strings require encoding/decoding integer values
-  according to the integer spec in the RFC.
-* Additionally, they require the huffman code implementation
-  so actors can support compressed header lines.
 ## Encode static header table in the package.
 The RFC predefines several static header name/value pairs that
 get a special index in a "static table". From my current understanding,
