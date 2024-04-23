@@ -36,37 +36,38 @@ func oneMask(n int) uint8 {
 //
 // To Decode an Hpack-encoded integer:
 //
-// 1. take the `prefixLength` least-significant bits from the first octet
-// 2. take the next sequence of octets up to (and including) the octet with its
-//    bit #7 set. Concatenate the 7 least-significant bits of the sequence in
-//    little-endian order.
-// 3. Add the value from #1 and the value from #2.
+//  1. take the `prefixLength` least-significant bits from the first octet
+//  2. take the next sequence of octets up to (and including) the octet with its
+//     bit #7 set. Concatenate the 7 least-significant bits of the sequence in
+//     little-endian order.
+//  3. Add the value from #1 and the value from #2.
 //
 // HPACK-encoded integers are done this way to allow for an integer to
 // start midway through an octet, leaving room for any flags or prefixes
-// that 
+// that
 func DecodeInteger(data []uint8, prefixLength int) (uint32, int, error) {
 	prefixMask := oneMask(prefixLength)
+	prefix := data[0] & prefixMask
 
-	if prefix := data[0] & prefixMask; prefix < prefixMask {
+	if prefix < prefixMask {
 		return uint32(prefix), 1, nil
 	}
 
 	var ret uint32
 	var shift int
-	i := 0
+	i := 1
 	for i < len(data) {
 		ret |= uint32(data[i]&0x7f) << shift
 		if data[i]&0x80 == 0 {
 			break
 		}
 		shift += 7
-		i ++
+		i++
 	}
 	if i == len(data) {
 		return 0, 0, errors.New("invalid hpack integer")
 	}
-	return ret, i + 1, nil
+	return ret + uint32(prefix), i + 1, nil
 }
 
 // DecodeString decodes an hpack-encoded string.
@@ -82,7 +83,7 @@ func DecodeString(data []uint8) ([]byte, int, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	stringData := data[numRead:numRead+int(dataLength)]
+	stringData := data[numRead : numRead+int(dataLength)]
 	if isHuffmanEncoded {
 		stringData = HpackHuffmanTree.Decode(stringData)
 	}

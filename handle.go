@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"http2/frame"
+	"http2/hpack"
 	"http2/session"
 	"io"
 	"net"
@@ -60,6 +61,16 @@ func Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		sl := session.SettingsListFromFramePayload(data)
 		for _, item := range sl.Settings {
 			fmt.Printf("%s = %d\n", item.Type, item.Value)
+		}
+	case frame.FrameHeaders:
+		totRead := 0
+		for totRead < len(data) {
+			hdr, numRead, err := hpack.NextHeader(data[totRead:])
+			if err != nil {
+				return err
+			}
+			totRead += numRead
+			fmt.Println(hdr)
 		}
 	default:
 		fmt.Println(hex.Dump(data))

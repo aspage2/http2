@@ -3,9 +3,9 @@ package hpack
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"fmt"
 	"io"
-	_ "embed"
 )
 
 //go:embed huffmantrimmed.txt

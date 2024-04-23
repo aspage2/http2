@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 )
 
@@ -29,7 +30,7 @@ func serverMain() {
 
 	for {
 		conn := Must(listener.Accept())
-		HandleConnection(conn)
+		fmt.Println(HandleConnection(conn))
 	}
 }
 
