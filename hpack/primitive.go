@@ -1,5 +1,9 @@
 package hpack
 
+import (
+	"errors"
+)
+
 func oneMask(n int) uint8 {
 	switch n {
 	case 0:
@@ -35,7 +39,7 @@ func oneMask(n int) uint8 {
 // 1. take the `prefixLength` least-significant bits from the first octet
 // 2. take the next sequence of octets up to (and including) the octet with its
 //    bit #7 set. Concatenate the 7 least-significant bits of the sequence in
-//    network-byte order.
+//    little-endian order.
 // 3. Add the value from #1 and the value from #2.
 //
 // HPACK-encoded integers are done this way to allow for an integer to
@@ -49,13 +53,38 @@ func DecodeInteger(data []uint8, prefixLength int) (uint32, int, error) {
 	}
 
 	var ret uint32
-	var retBit int
+	var shift int
 	i := 0
-	for {
-		ret |= 
+	for i < len(data) {
+		ret |= uint32(data[i]&0x7f) << shift
 		if data[i]&0x80 == 0 {
 			break
 		}
+		shift += 7
 		i ++
 	}
+	if i == len(data) {
+		return 0, 0, errors.New("invalid hpack integer")
+	}
+	return ret, i + 1, nil
+}
+
+// DecodeString decodes an hpack-encoded string.
+// Strings begin with an hpack-encoded integer of prefix 7
+// which represent the length of the string data on the wire.
+// The string data follows right after the HPACK integer.
+// If the MSB of the first octet is 1, the string is huffman
+// coded with the canonical huffman code given in RFC 7541.
+func DecodeString(data []uint8) ([]byte, int, error) {
+	isHuffmanEncoded := data[0]&0x80 != 0
+
+	dataLength, numRead, err := DecodeInteger(data, 7)
+	if err != nil {
+		return nil, 0, err
+	}
+	stringData := data[numRead:numRead+int(dataLength)]
+	if isHuffmanEncoded {
+		stringData = HpackHuffmanTree.Decode(stringData)
+	}
+	return stringData, int(dataLength) + numRead, nil
 }
