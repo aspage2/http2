@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
 	"encoding/hex"
 	"errors"
+	"fmt"
+	"http2/frame"
 	"io"
 	"net"
-	"time"
 )
 
 var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
@@ -36,28 +36,20 @@ func HandleConnection(conn net.Conn) error {
 
 	buf := bufio.NewReader(conn)
 
-	cont := make(chan struct{})
-
-	go func() {
-		for {
-			select {
-			case <-cont:
-				continue
-			case <-time.After(1 * time.Second):
-				conn.Close()
-			}
-		}
-	}()
-
 	if err := ConsumePreface(buf); err != nil {
 		return err
 	}
 
 	for {
-		data, err := io.ReadAll(buf)
-		if err != nil {
-			fmt.Println(hex.Dump(data))
+		fh := new(frame.FrameHeader)
+		if err := fh.Unmarshal(buf); err != nil {
 			return err
 		}
+		data := make([]uint8, fh.Length)
+		if _, err := io.ReadFull(buf, data); err != nil {
+			return err
+		}
+		fmt.Println(fh)
+		fmt.Println(hex.Dump(data))
 	}
 }

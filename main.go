@@ -13,7 +13,7 @@ func Must[T any](v T, err error) T {
 }
 
 func TLSListener() net.Listener {
-	cert := Must(tls.LoadX509KeyPair("certs/server.crt", "certs/server.pem"))
+	cert := Must(tls.LoadX509KeyPair("certs/cert.pem", "certs/key.pem"))
 	var cfg tls.Config
 	cfg.Certificates = append(cfg.Certificates, cert)
 	cfg.NextProtos = append(cfg.NextProtos, "h2")
