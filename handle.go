@@ -3,15 +3,16 @@ package main
 import (
 	"fmt"
 	"bufio"
+	"encoding/hex"
 	"errors"
-	"http2/frame"
-	"http2/histReader"
 	"io"
 	"net"
+	"time"
 )
 
 var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
 var UnexpectedPreface = errors.New("unexpected preface")
+
 
 func ConsumePreface(rd io.Reader) error {
 	preface := make([]byte, 24)
@@ -33,21 +34,30 @@ func ConsumePreface(rd io.Reader) error {
 func HandleConnection(conn net.Conn) error {
 	defer conn.Close()
 
-	// Instrument with a histReader to log all the bytes read
-	lg := histReader.NewHistReader(conn)
-	buf := bufio.NewReader(lg)
+	buf := bufio.NewReader(conn)
+
+	cont := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case <-cont:
+				continue
+			case <-time.After(1 * time.Second):
+				conn.Close()
+			}
+		}
+	}()
 
 	if err := ConsumePreface(buf); err != nil {
 		return err
 	}
 
-	var fh frame.Frame
 	for {
-		if err := frame.ReadFrame(buf, &fh); err != nil {
+		data, err := io.ReadAll(buf)
+		if err != nil {
+			fmt.Println(hex.Dump(data))
 			return err
 		}
-
-		fmt.Println(&fh)
 	}
-	return nil
 }
