@@ -7,13 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func TestFrameHeader_Flags(t *testing.T) {
 	fh := new(FrameHeader)
 
 	fh.Flags = 0b00101000
 
-	for i := 0; i < 8; i ++ {
+	for i := 0; i < 8; i++ {
 		if i == 5 || i == 3 {
 			assert.True(t, fh.Flag(i))
 		} else {
@@ -37,4 +36,3 @@ func TestFrameHeaderUnmarshal(t *testing.T) {
 	assert.Equal(t, flags, fh.Flags)
 	assert.Equal(t, Sid(420), fh.Sid)
 }
-

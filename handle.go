@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"http2/frame"
+	"http2/session"
 	"io"
 	"net"
 )
 
 var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
 var UnexpectedPreface = errors.New("unexpected preface")
-
 
 func ConsumePreface(rd io.Reader) error {
 	preface := make([]byte, 24)
@@ -49,7 +49,21 @@ func HandleConnection(conn net.Conn) error {
 		if _, err := io.ReadFull(buf, data); err != nil {
 			return err
 		}
-		fmt.Println(fh)
+		Dispatch(fh, data)
+	}
+}
+
+func Dispatch(fh *frame.FrameHeader, data []uint8) error {
+	fmt.Println(fh)
+	switch fh.Type {
+	case frame.FrameSettings:
+		sl := session.SettingsListFromFramePayload(data)
+		for _, item := range sl.Settings {
+			fmt.Printf("%s = %d\n", item.Type, item.Value)
+		}
+	default:
 		fmt.Println(hex.Dump(data))
 	}
+	fmt.Println("------------------------------------------------------------")
+	return nil
 }
