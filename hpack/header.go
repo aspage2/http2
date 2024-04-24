@@ -12,11 +12,20 @@ var (
 
 // A Header represents the encoded form of an HPACK header block.
 type Header interface {
+	Resolve(*HeaderLookupTable) (string, string, error)
+
+	ShouldIndex() bool
 }
 
 // An IndexedHeader represents a header pair that can be found
 // at the IndexHeader's value in a lookup table.
 type IndexedHeader int
+
+// IndexedHeaders are already indexed, so it doesn't make
+// sense to put the values back in!
+func (ih IndexedHeader) ShouldIndex() bool {
+	return false
+}
 
 func (ih IndexedHeader) Resolve(table *HeaderLookupTable) (string, string, error) {
 	k, v, ok := table.Lookup(int(ih))
@@ -72,6 +81,10 @@ func (lh *LiteralHeader) Resolve(table *HeaderLookupTable) (string, string, erro
 		return "", "", LookupIndexOutOfBounds
 	}
 	return k, string(lh.ValueLiteral), nil
+}
+
+func (lh *LiteralHeader) ShouldIndex() bool {
+	return lh.Type == IncrementalIndex
 }
 
 func (lh *LiteralHeader) String() string {
