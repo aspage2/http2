@@ -1,11 +1,11 @@
 package session
 
 import (
+	"encoding/hex"
 	"fmt"
 	"http2/frame"
 	"http2/hpack"
 	"io"
-	"encoding/hex"
 )
 
 // A Session object represents an open connection
@@ -15,7 +15,6 @@ type Session struct {
 
 	LookupTable *hpack.HeaderLookupTable
 }
-
 
 func NewSession(rd io.Reader) *Session {
 	var sess Session

@@ -20,7 +20,7 @@ const (
 
 	SettingsInitialWindowSize
 
-	// the maximum HTTP frame size supported during the session 
+	// the maximum HTTP frame size supported during the session
 	SettingsMaxFrameSize
 
 	// The maximum number of headers accepted by the server.

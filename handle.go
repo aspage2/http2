@@ -50,4 +50,3 @@ func HandleConnection(conn net.Conn) error {
 		sess.Dispatch(fh, data)
 	}
 }
-
