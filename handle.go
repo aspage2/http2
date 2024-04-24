@@ -2,11 +2,8 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"http2/frame"
-	"http2/hpack"
 	"http2/session"
 	"io"
 	"net"
@@ -34,9 +31,9 @@ func ConsumePreface(rd io.Reader) error {
 
 func HandleConnection(conn net.Conn) error {
 	defer conn.Close()
+	sess := session.NewSession(conn)
 
 	buf := bufio.NewReader(conn)
-
 	if err := ConsumePreface(buf); err != nil {
 		return err
 	}
@@ -50,31 +47,6 @@ func HandleConnection(conn net.Conn) error {
 		if _, err := io.ReadFull(buf, data); err != nil {
 			return err
 		}
-		Dispatch(fh, data)
+		sess.Dispatch(fh, data)
 	}
-}
-
-func Dispatch(fh *frame.FrameHeader, data []uint8) error {
-	fmt.Println(fh)
-	switch fh.Type {
-	case frame.FrameSettings:
-		sl := session.SettingsListFromFramePayload(data)
-		for _, item := range sl.Settings {
-			fmt.Printf("%s = %d\n", item.Type, item.Value)
-		}
-	case frame.FrameHeaders:
-		totRead := 0
-		for totRead < len(data) {
-			hdr, numRead, err := hpack.NextHeader(data[totRead:])
-			if err != nil {
-				return err
-			}
-			totRead += numRead
-			fmt.Println(hdr)
-		}
-	default:
-		fmt.Println(hex.Dump(data))
-	}
-	fmt.Println("------------------------------------------------------------")
-	return nil
 }
