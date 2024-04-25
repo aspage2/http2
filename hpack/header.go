@@ -1,8 +1,10 @@
 package hpack
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -15,6 +17,8 @@ type Header interface {
 	Resolve(*HeaderLookupTable) (string, string, error)
 
 	ShouldIndex() bool
+
+	Encode() []uint8
 }
 
 // An IndexedHeader represents a header pair that can be found
@@ -25,6 +29,12 @@ type IndexedHeader int
 // sense to put the values back in!
 func (ih IndexedHeader) ShouldIndex() bool {
 	return false
+}
+
+func (ih IndexedHeader) Encode() []uint8 {
+	data := EncodeInteger(uint32(ih), 7)
+	data[0] |= 0x80
+	return data
 }
 
 func (ih IndexedHeader) Resolve(table *HeaderLookupTable) (string, string, error) {
@@ -85,6 +95,36 @@ func (lh *LiteralHeader) Resolve(table *HeaderLookupTable) (string, string, erro
 
 func (lh *LiteralHeader) ShouldIndex() bool {
 	return lh.Type == IncrementalIndex
+}
+
+func (lh *LiteralHeader) Encode() []uint8 {
+	var (
+		prefixLength int
+		msb uint8
+		data bytes.Buffer
+	)
+	switch lh.Type {
+	case IncrementalIndex:
+		prefixLength = 6
+		msb = 0b01
+	case NoIndex:
+		prefixLength = 4
+		msb = 0b0000
+	case NeverIndex:
+		prefixLength = 4
+		msb = 0b0001
+	}
+	if lh.KeyLiteral != "" {
+		data.WriteByte(msb << uint8(prefixLength))
+		data.Write(EncodeString([]byte(lh.KeyLiteral)))
+	} else {
+		buf := EncodeInteger(lh.KeyIndex, prefixLength)
+		buf[0] = (buf[0] & oneMask(prefixLength)) | (msb << uint8(prefixLength))
+		data.Write(buf)
+	}
+	data.Write(EncodeString([]byte(lh.ValueLiteral)))
+	ret, _ := io.ReadAll(&data)
+	return ret
 }
 
 func (lh *LiteralHeader) String() string {
@@ -154,3 +194,4 @@ func literalHeader(data []uint8, typ LiteralIndexType, prefixSize int) (Header, 
 	lh.ValueLiteral = string(s)
 	return &lh, totalRead, nil
 }
+

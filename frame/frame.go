@@ -1,6 +1,7 @@
 package frame
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -42,6 +43,20 @@ func (fh *FrameHeader) Unmarshal(rd io.Reader) error {
 	fh.Sid = Sid(binary.BigEndian.Uint32(buf[5:]))
 
 	return nil
+}
+
+func (fh *FrameHeader) Marshal(wr io.Writer) error {
+	var buf [9]uint8
+
+	buf[0] = uint8(fh.Length >> 16)
+	buf[1] = uint8(fh.Length >> 8)
+	buf[2] = uint8(fh.Length)
+	buf[3] = uint8(fh.Type)
+	buf[4] = uint8(fh.Flags)
+	binary.BigEndian.PutUint32(buf[5:], uint32(fh.Sid))
+
+	_, err := io.Copy(wr, bytes.NewReader(buf[:]))
+	return err
 }
 
 func (fh *FrameHeader) String() string {

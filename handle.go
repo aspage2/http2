@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"bufio"
 	"errors"
 	"http2/frame"
@@ -31,13 +32,36 @@ func ConsumePreface(rd io.Reader) error {
 
 func HandleConnection(conn net.Conn) error {
 	defer conn.Close()
-	sess := session.NewSession(conn)
 
 	buf := bufio.NewReader(conn)
+	outbuf := bufio.NewWriter(conn)
+	sess := session.NewSession(buf, outbuf)
+
+	fmt.Println("======================= NEW CONNECTION =======================")
 	if err := ConsumePreface(buf); err != nil {
 		return err
 	}
+	globalStream := sess.Stream(0)
+	
+	stgs, err := globalStream.ExpectFrameType(frame.FrameSettings)
+	if err != nil {
+		return err
+	}
+	data := make([]uint8, stgs.Length)
+	if _, err := io.ReadFull(buf, data); err != nil {
+		return err
+	}	
+	sl := session.SettingsListFromFramePayload(data)
+	fmt.Println("---(INITIAL CLIENT SETTINGS)---")
+	for _, item := range sl.Settings {
+		fmt.Printf("%s = %d\n", item.Type, item.Value)
+	}
+	fmt.Println("")
+	globalStream.SendFrame(frame.FrameSettings, session.STGS_ACK, nil)
 
+	// Send empty settings for our preface.
+	globalStream.SendFrame(frame.FrameSettings, 0, nil)
+	outbuf.Flush()
 	for {
 		fh := new(frame.FrameHeader)
 		if err := fh.Unmarshal(buf); err != nil {
@@ -46,7 +70,8 @@ func HandleConnection(conn net.Conn) error {
 		data := make([]uint8, fh.Length)
 		if _, err := io.ReadFull(buf, data); err != nil {
 			return err
-		}
+		}	
 		sess.Dispatch(fh, data)
+		outbuf.Flush()
 	}
 }

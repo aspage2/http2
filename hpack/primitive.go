@@ -70,6 +70,23 @@ func DecodeInteger(data []uint8, prefixLength int) (uint32, int, error) {
 	return ret + uint32(prefix), i + 1, nil
 }
 
+func EncodeInteger(n uint32, prefixLength int) []byte {
+	prefixMask := oneMask(prefixLength)
+	if n < uint32(prefixMask) {
+		return []byte{uint8(n)}
+	}
+	
+	ret := append(make([]byte, 0, 5), prefixMask)
+	rest := n - uint32(prefixMask)
+	for rest > 0 {
+		ret = append(ret, uint8(rest) & 0x7f)
+		rest >>= 7
+	}
+	// Set the last bit to signify the end of the integer 
+	ret[len(ret) - 1] |= 0x80
+	return ret
+}
+
 // DecodeString decodes an hpack-encoded string.
 // Strings begin with an hpack-encoded integer of prefix 7
 // which represent the length of the string data on the wire.
@@ -88,4 +105,22 @@ func DecodeString(data []uint8) ([]byte, int, error) {
 		stringData = HpackHuffmanTree.Decode(stringData)
 	}
 	return stringData, int(dataLength) + numRead, nil
+}
+
+func EncodeString(data []byte) []byte {
+	huffEncoded := HpackHuffmanTree.Encode(data)
+	shouldUseHuffman := len(huffEncoded) < len(data)
+
+	payloadToEncode := data
+	if shouldUseHuffman {
+		payloadToEncode = huffEncoded
+	}
+
+	lenEncoded := EncodeInteger(uint32(len(payloadToEncode)), 7)
+	lenEncoded[0] |= 0x80
+	ret := make([]uint8, len(lenEncoded) + len(payloadToEncode))
+	n := copy(ret, lenEncoded)
+	copy(ret[n:], payloadToEncode)
+
+	return ret
 }
