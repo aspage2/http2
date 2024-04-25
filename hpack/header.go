@@ -100,8 +100,8 @@ func (lh *LiteralHeader) ShouldIndex() bool {
 func (lh *LiteralHeader) Encode() []uint8 {
 	var (
 		prefixLength int
-		msb uint8
-		data bytes.Buffer
+		msb          uint8
+		data         bytes.Buffer
 	)
 	switch lh.Type {
 	case IncrementalIndex:
@@ -194,4 +194,3 @@ func literalHeader(data []uint8, typ LiteralIndexType, prefixSize int) (Header, 
 	lh.ValueLiteral = string(s)
 	return &lh, totalRead, nil
 }
-

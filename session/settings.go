@@ -27,7 +27,7 @@ const (
 	SettingsMaxHeaderListSize
 )
 
-// STGS_ACK is a flag used in a settings 
+// STGS_ACK is a flag used in a settings
 const STGS_ACK = 0x01
 
 type setting struct {

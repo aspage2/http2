@@ -1,8 +1,8 @@
 package session
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 	"http2/frame"
 	"io"
 )
@@ -10,7 +10,7 @@ import (
 // A stream represents a single two-way channel
 // within a session.
 type Stream struct {
-	Sid frame.Sid
+	Sid     frame.Sid
 	Session *Session
 }
 
@@ -45,4 +45,3 @@ func (stream *Stream) ExpectFrameType(typ frame.FrameType) (*frame.FrameHeader, 
 	}
 	return fh, nil
 }
-

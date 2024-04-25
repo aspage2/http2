@@ -1,14 +1,14 @@
 package hpack
 
 import (
-	"io"
 	"bytes"
+	"io"
 	"strings"
 )
 
 type HeaderList struct {
 	data bytes.Buffer
-	tbl *HeaderLookupTable
+	tbl  *HeaderLookupTable
 }
 
 func NewHeaderList(table *HeaderLookupTable) *HeaderList {
@@ -25,8 +25,8 @@ func (hl *HeaderList) Put(k, v string) {
 	if ind > 0 && !justKey {
 		hl.data.Write(IndexedHeader(ind).Encode())
 		return
-	} 
-	
+	}
+
 	hdr := new(LiteralHeader)
 	switch k {
 	case "authorization":

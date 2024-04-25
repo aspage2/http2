@@ -63,7 +63,7 @@ const (
 func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 	totRead := 0
 	padLength := 0
-	
+
 	// End of headers
 	if !fh.Flag(2) {
 		// TODO: This server doesn't support continuation frames yet. fix it!
@@ -82,7 +82,7 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 		fmt.Printf("STREAM DEPENDENCY: %d --> %d (weight %d)\n", fh.Sid, depSid, weight)
 		totRead += 5
 	}
-	for totRead < len(data) - padLength {
+	for totRead < len(data)-padLength {
 		hdr, numRead, err := hpack.NextHeader(data[totRead:])
 		if err != nil {
 			return err
@@ -104,7 +104,7 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 		hl.Put(":status", "404")
 		hl.Put("what", "is the meaning of this? why are we here? just to suffer?")
 		st := sess.Stream(fh.Sid)
-		st.SendFrame(frame.FrameHeaders, FLAG_END_STREAM | FLAG_END_HEADERS, hl.Dump())
+		st.SendFrame(frame.FrameHeaders, FLAG_END_STREAM|FLAG_END_HEADERS, hl.Dump())
 		fmt.Println("sent frame")
 	}
 	fmt.Println(sess.LookupTable)

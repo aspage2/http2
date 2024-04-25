@@ -75,15 +75,15 @@ func EncodeInteger(n uint32, prefixLength int) []byte {
 	if n < uint32(prefixMask) {
 		return []byte{uint8(n)}
 	}
-	
+
 	ret := append(make([]byte, 0, 5), prefixMask)
 	rest := n - uint32(prefixMask)
 	for rest > 0 {
-		ret = append(ret, uint8(rest) & 0x7f)
+		ret = append(ret, uint8(rest)&0x7f)
 		rest >>= 7
 	}
-	// Set the last bit to signify the end of the integer 
-	ret[len(ret) - 1] |= 0x80
+	// Set the last bit to signify the end of the integer
+	ret[len(ret)-1] |= 0x80
 	return ret
 }
 
@@ -117,8 +117,10 @@ func EncodeString(data []byte) []byte {
 	}
 
 	lenEncoded := EncodeInteger(uint32(len(payloadToEncode)), 7)
-	lenEncoded[0] |= 0x80
-	ret := make([]uint8, len(lenEncoded) + len(payloadToEncode))
+	if shouldUseHuffman {
+		lenEncoded[0] |= 0x80
+	}
+	ret := make([]uint8, len(lenEncoded)+len(payloadToEncode))
 	n := copy(ret, lenEncoded)
 	copy(ret[n:], payloadToEncode)
 

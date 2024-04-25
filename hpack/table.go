@@ -24,15 +24,15 @@ type HeaderLookupTable struct {
 
 func NewHeaderLookupTable() *HeaderLookupTable {
 	return &HeaderLookupTable{
-		entries:    make([]TableEntry, 16),
-		lo:         0,
+		entries: make([]TableEntry, 16),
+		lo:      0,
 
 		// The number of entries in the table
 		numEntries: 0,
 
-		// Size in octets of this table 
-		size:       0,
-		maxSize:    1024,
+		// Size in octets of this table
+		size:    0,
+		maxSize: 1024,
 	}
 }
 
@@ -134,8 +134,8 @@ func (dt *HeaderLookupTable) String() string {
 
 func (tbl *HeaderLookupTable) Find(k, v string) (idx int, justKey bool) {
 	idx = -1
-	for i := 1; i < tbl.NumEntries() + 1; i ++ {
-		ek, ev, _ := tbl.Lookup(i) 
+	for i := 1; i < tbl.NumEntries()+1; i++ {
+		ek, ev, _ := tbl.Lookup(i)
 		if ek == k && ev == v {
 			idx = i
 			justKey = false
@@ -145,7 +145,7 @@ func (tbl *HeaderLookupTable) Find(k, v string) (idx int, justKey bool) {
 			justKey = true
 		}
 	}
-	return 
+	return
 }
 
 var StaticTable = []TableEntry{

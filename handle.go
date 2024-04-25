@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
 	"errors"
+	"fmt"
 	"http2/frame"
 	"http2/session"
 	"io"
@@ -42,7 +42,7 @@ func HandleConnection(conn net.Conn) error {
 		return err
 	}
 	globalStream := sess.Stream(0)
-	
+
 	stgs, err := globalStream.ExpectFrameType(frame.FrameSettings)
 	if err != nil {
 		return err
@@ -50,7 +50,7 @@ func HandleConnection(conn net.Conn) error {
 	data := make([]uint8, stgs.Length)
 	if _, err := io.ReadFull(buf, data); err != nil {
 		return err
-	}	
+	}
 	sl := session.SettingsListFromFramePayload(data)
 	fmt.Println("---(INITIAL CLIENT SETTINGS)---")
 	for _, item := range sl.Settings {
@@ -70,7 +70,7 @@ func HandleConnection(conn net.Conn) error {
 		data := make([]uint8, fh.Length)
 		if _, err := io.ReadFull(buf, data); err != nil {
 			return err
-		}	
+		}
 		sess.Dispatch(fh, data)
 		outbuf.Flush()
 	}
