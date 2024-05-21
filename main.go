@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 )
 
 func Must[T any](v T, err error) T {
@@ -34,6 +37,16 @@ func serverMain() {
 	}
 }
 
+func NestedBuf(rd io.Reader) {
+	buf := bufio.NewReader(rd)
+	fmt.Printf("NestedBuf got this char: %c\n", Must(buf.ReadByte()))
+}
+
 func main() {
-	serverMain()
+	data := strings.NewReader("Hello, world")
+	NestedBuf(data)
+
+	rest := make([]byte, 1024)
+	n, err := data.Read(rest)
+	fmt.Printf("%d %e\n", n, err)
 }

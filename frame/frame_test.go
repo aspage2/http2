@@ -2,6 +2,7 @@ package frame
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,4 +36,23 @@ func TestFrameHeaderUnmarshal(t *testing.T) {
 	assert.Equal(t, typ, fh.Type)
 	assert.Equal(t, flags, fh.Flags)
 	assert.Equal(t, Sid(420), fh.Sid)
+}
+
+func TestFrameHeaderMarshal(t *testing.T) {
+	fh := new(FrameHeader)
+
+	fh.Sid = 0xfabb1208
+	fh.Type = FrameHeaders
+	fh.Flags = 0b101
+	fh.Length = 255
+
+	var buf bytes.Buffer
+
+	assert.NoError(t, fh.Marshal(&buf))
+	data, _ := io.ReadAll(&buf)
+
+	exp := []byte{0x00, 0x00, 0xff, uint8(FrameHeaders), 0b101, 0xfa, 0xbb, 0x12, 0x08}
+	for i := 0; i < 9; i++ {
+		assert.Equal(t, exp[i], data[i])
+	}
 }
