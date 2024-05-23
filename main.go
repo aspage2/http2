@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
+	"flag"
 )
 
 func Must[T any](v T, err error) T {
@@ -16,20 +16,22 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
-func TLSListener() net.Listener {
+func TLSListener(bindAddr string) net.Listener {
 	cert := Must(tls.LoadX509KeyPair("certs/cert.pem", "certs/key.pem"))
 	var cfg tls.Config
 	cfg.Certificates = append(cfg.Certificates, cert)
 	cfg.NextProtos = append(cfg.NextProtos, "h2")
-	return Must(tls.Listen("tcp", ":8000", &cfg))
+	return Must(tls.Listen("tcp", bindAddr, &cfg))
 }
 
-func PlainListener() net.Listener {
-	return Must(net.Listen("tcp", ":8000"))
-}
-
-func serverMain() {
-	listener := TLSListener()
+func serverMain(bindAddr string, tls bool) {
+	var listener net.Listener
+	if tls {
+		listener = TLSListener(bindAddr)
+		fmt.Printf("server available at https://%s\n", bindAddr)
+	} else {
+		panic("non-tls not implemented")
+	}
 
 	for {
 		conn := Must(listener.Accept())
@@ -43,10 +45,9 @@ func NestedBuf(rd io.Reader) {
 }
 
 func main() {
-	data := strings.NewReader("Hello, world")
-	NestedBuf(data)
+	useTLS := flag.Bool("tls", true, "whether or not to use tls")
+	bind := flag.String("bind", ":8000", "host:port authority to listen on")
+	flag.Parse()
 
-	rest := make([]byte, 1024)
-	n, err := data.Read(rest)
-	fmt.Printf("%d %e\n", n, err)
+	serverMain(*bind, *useTLS)
 }
