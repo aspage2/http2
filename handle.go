@@ -43,6 +43,10 @@ func HandleConnection(conn net.Conn) error {
 	}
 	globalStream := sess.Stream(0)
 
+	// Send empty settings for our preface.
+	globalStream.SendFrame(frame.FrameSettings, 0, nil)
+	outbuf.Flush()
+
 	stgs, err := globalStream.ExpectFrameType(frame.FrameSettings)
 	if err != nil {
 		return err
@@ -58,10 +62,8 @@ func HandleConnection(conn net.Conn) error {
 	}
 	fmt.Println("")
 	globalStream.SendFrame(frame.FrameSettings, session.STGS_ACK, nil)
-
-	// Send empty settings for our preface.
-	globalStream.SendFrame(frame.FrameSettings, 0, nil)
 	outbuf.Flush()
+
 	for {
 		fh := new(frame.FrameHeader)
 		if err := fh.Unmarshal(buf); err != nil {
@@ -71,7 +73,10 @@ func HandleConnection(conn net.Conn) error {
 		if _, err := io.ReadFull(buf, data); err != nil {
 			return err
 		}
-		sess.Dispatch(fh, data)
+		if err := sess.Dispatch(fh, data); err != nil {
+			outbuf.Flush()
+			return err
+		}
 		outbuf.Flush()
 	}
 }

@@ -13,7 +13,7 @@ const (
 	FrameSettings
 	FramePushPromise
 	FramePing
-	FrameGoAway
+	FrameGoaway
 	FrameWindowUpdate
 	FrameContinuation
 )
