@@ -3,10 +3,10 @@ package main
 import (
 	"bufio"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"io"
 	"net"
-	"flag"
 )
 
 func Must[T any](v T, err error) T {

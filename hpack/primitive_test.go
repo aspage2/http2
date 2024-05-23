@@ -8,7 +8,12 @@ import (
 )
 
 func TestDecodeInteger(t *testing.T) {
-	cases := []struct{D string; P int; E uint32; Enr int;}{
+	cases := []struct {
+		D   string
+		P   int
+		E   uint32
+		Enr int
+	}{
 		{"\x47", 6, 7, 1},
 		{"\x47", 7, 71, 1},
 		{"\x07\x0e", 3, 21, 2},
@@ -33,7 +38,11 @@ func TestDecodeInteger_Error(t *testing.T) {
 }
 
 func TestEncodeInteger(t *testing.T) {
-	cases := []struct{N uint32; P int; E string}{
+	cases := []struct {
+		N uint32
+		P int
+		E string
+	}{
 		{127, 7, "\x7f"},
 		{127, 5, "\x1f\x60"},
 		{0xffffffff, 7, "\x7f\x80\xff\xff\xff\x0f"},
@@ -41,10 +50,10 @@ func TestEncodeInteger(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%d,%d", c.N, c.P), func(t *testing.T) {
-			data := EncodeInteger(c.N, c.P )
+			data := EncodeInteger(c.N, c.P)
 			// mask the non-prefix bits as we don't care about them
 			data[0] &= (1 << c.P) - 1
-			assert.Equal(t, c.E, string(data)) 
+			assert.Equal(t, c.E, string(data))
 		})
 	}
 }
@@ -64,7 +73,12 @@ func TestEncodeStringHuffman(t *testing.T) {
 }
 
 func TestDecodeStringNoHuffman(t *testing.T) {
-	cases := []struct{Name string; D string; ENumRead int; Exp string}{
+	cases := []struct {
+		Name     string
+		D        string
+		ENumRead int
+		Exp      string
+	}{
 		{"NoHuffman", "\x02BRUH", 3, "BR"},
 		{"Huffman", "\x82\x8c\xbf", 3, "be"},
 	}
@@ -77,4 +91,3 @@ func TestDecodeStringNoHuffman(t *testing.T) {
 		})
 	}
 }
-

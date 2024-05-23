@@ -14,6 +14,8 @@ type Stream struct {
 	Session *Session
 }
 
+// Send a frame to the client.
+// If the body is nil, it is treated as a zero-length payload.
 func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) error {
 	fh := new(frame.FrameHeader)
 	fh.Sid = stream.Sid
@@ -31,6 +33,9 @@ func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) 
 	return err
 }
 
+// Expect a frame of the given frame type from this stream.
+// Returns an error if the next frame from the server is either
+// not for this stream or not the correct type
 func (stream *Stream) ExpectFrameType(typ frame.FrameType) (*frame.FrameHeader, error) {
 	fh := new(frame.FrameHeader)
 	err := fh.Unmarshal(stream.Session.Incoming)
