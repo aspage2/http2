@@ -16,6 +16,8 @@ type Session struct {
 	Incoming io.Reader
 	Outgoing io.Writer
 
+	lastStream frame.Sid
+
 	LookupTable *hpack.HeaderLookupTable
 }
 
@@ -23,6 +25,8 @@ func NewSession(rd io.Reader, wr io.Writer) *Session {
 	var sess Session
 	sess.Incoming = rd
 	sess.Outgoing = wr
+
+	sess.lastStream = 0
 
 	sess.LookupTable = hpack.NewHeaderLookupTable()
 	return &sess
@@ -35,6 +39,7 @@ func (sess *Session) Stream(sid frame.Sid) *Stream {
 // Dispatch a frame header and payload to the appropriate handler.
 func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 	fmt.Println(fh)
+	sess.lastStream = fh.Sid
 	switch fh.Type {
 	case frame.FrameSettings:
 		sl := SettingsListFromFramePayload(data)
@@ -46,11 +51,26 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		if err := sess.HandleHeader(fh, data); err != nil {
 			return err
 		}
+	case frame.FrameGoaway:
+		gf := GoawayFrameFromPayload(data)
+		fmt.Println("Received a GOAWAY from client")
+		fmt.Println(gf.String())
+		sess.SendGoaway(sess.lastStream, StreamErrorNoError, "")
+		return errors.New("client goaway")
 	default:
 		fmt.Println(hex.Dump(data))
 	}
 	fmt.Println("------------------------------------------------------------")
 	return nil
+}
+
+func (sess *Session) SendGoaway(lastSid frame.Sid, code StreamError, message string) {
+	var gf GoawayFrame
+	gf.LastStreamId = lastSid
+	gf.ErrorCode = code
+	gf.DebugInfo = []byte(message)
+
+	sess.Stream(0).SendFrame(frame.FrameGoaway, 0, gf.Marshal())
 }
 
 const (
@@ -100,12 +120,6 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 	// End of stream
 	if fh.Flag(0) {
 		fmt.Printf("END OF STREAM %d\n", fh.Sid)
-		hl := hpack.NewHeaderList(sess.LookupTable)
-		hl.Put(":status", "404")
-		hl.Put("what", "is the meaning of this? why are we here? just to suffer?")
-		st := sess.Stream(fh.Sid)
-		st.SendFrame(frame.FrameHeaders, FLAG_END_STREAM|FLAG_END_HEADERS, hl.Dump())
-		fmt.Println("sent frame")
 	}
 	fmt.Println(sess.LookupTable)
 	return nil

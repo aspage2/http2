@@ -15,7 +15,7 @@ func _() {
 	_ = x[FrameSettings-4]
 	_ = x[FramePushPromise-5]
 	_ = x[FramePing-6]
-	_ = x[FrameGoAway-7]
+	_ = x[FrameGoaway-7]
 	_ = x[FrameWindowUpdate-8]
 	_ = x[FrameContinuation-9]
 }
