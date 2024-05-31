@@ -2,7 +2,6 @@ package session
 
 import (
 	"bytes"
-	"fmt"
 	"http2/frame"
 	"io"
 )
@@ -12,6 +11,57 @@ import (
 type Stream struct {
 	Sid     frame.Sid
 	Session *Session
+
+	headers map[string][]string
+	data    []uint8
+
+	localClosed  bool
+	remoteClosed bool
+}
+
+func NewStream(sid frame.Sid, sess *Session) *Stream {
+	return &Stream{
+		Sid:     sid,
+		Session: sess,
+		headers: make(map[string][]string),
+	}
+}
+
+
+func (st *Stream) FullyClosed() bool {
+	return st.localClosed && st.remoteClosed
+}
+
+func (st *Stream) SetLocalClosed() {
+	st.localClosed = true
+}
+
+func (st *Stream) IsLocalClosed() bool {
+	return st.localClosed
+}
+
+func (st *Stream) IsRemoteClosed() bool {
+	return st.remoteClosed
+}
+
+func (st *Stream) SetRemoteClosed() {
+	st.remoteClosed = true
+}
+
+func (st *Stream) AddHeader(k, v string) {
+	_, ok := st.headers[k]
+	if !ok {
+		st.headers[k] = []string{v}
+	} else {
+		st.headers[k] = append(st.headers[k], v)
+	}
+}
+
+func (st *Stream) ExtendData(data []uint8) {
+	newData := make([]uint8, len(data) + len(st.data))
+	copy(newData, st.data)
+	copy(newData[len(st.data):], data)
+	st.data = newData
 }
 
 // Send a frame to the client.
@@ -33,20 +83,3 @@ func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) 
 	return err
 }
 
-// Expect a frame of the given frame type from this stream.
-// Returns an error if the next frame from the server is either
-// not for this stream or not the correct type
-func (stream *Stream) ExpectFrameType(typ frame.FrameType) (*frame.FrameHeader, error) {
-	fh := new(frame.FrameHeader)
-	err := fh.Unmarshal(stream.Session.Incoming)
-	if err != nil {
-		return nil, err
-	}
-	if fh.Type != typ {
-		return nil, fmt.Errorf("expected %s, got %s", typ, fh.Type)
-	}
-	if fh.Sid != stream.Sid {
-		return nil, fmt.Errorf("expected stream %d, got %d", stream.Sid, fh.Sid)
-	}
-	return fh, nil
-}
