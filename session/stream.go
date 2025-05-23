@@ -11,12 +11,11 @@ import (
 type Stream struct {
 	Sid     frame.Sid
 	Session *Session
+	State StreamState
 
 	headers map[string][]string
 	data    []uint8
 
-	localClosed  bool
-	remoteClosed bool
 }
 
 func NewStream(sid frame.Sid, sess *Session) *Stream {
@@ -25,27 +24,6 @@ func NewStream(sid frame.Sid, sess *Session) *Stream {
 		Session: sess,
 		headers: make(map[string][]string),
 	}
-}
-
-
-func (st *Stream) FullyClosed() bool {
-	return st.localClosed && st.remoteClosed
-}
-
-func (st *Stream) SetLocalClosed() {
-	st.localClosed = true
-}
-
-func (st *Stream) IsLocalClosed() bool {
-	return st.localClosed
-}
-
-func (st *Stream) IsRemoteClosed() bool {
-	return st.remoteClosed
-}
-
-func (st *Stream) SetRemoteClosed() {
-	st.remoteClosed = true
 }
 
 func (st *Stream) AddHeader(k, v string) {
@@ -58,7 +36,7 @@ func (st *Stream) AddHeader(k, v string) {
 }
 
 func (st *Stream) ExtendData(data []uint8) {
-	newData := make([]uint8, len(data) + len(st.data))
+	newData := make([]uint8, len(data)+len(st.data))
 	copy(newData, st.data)
 	copy(newData[len(st.data):], data)
 	st.data = newData
@@ -82,4 +60,3 @@ func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) 
 	_, err := io.Copy(stream.Session.Outgoing, bytes.NewReader(data))
 	return err
 }
-

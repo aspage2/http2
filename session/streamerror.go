@@ -1,21 +1,21 @@
 package session
 
-//go:generate stringer -type=StreamError
+//go:generate stringer -type=ErrorCode
 
-type StreamError uint32
+type ErrorCode uint32
 
 const (
-	StreamErrorNoError StreamError = iota
-	StreamErrorProtocol
-	StreamErrorInternal
-	StreamErrorFlowControl
-	StreamErrorSettingsTimeout
-	StreamErrorStreamClosed
-	StreamErrorFrameSize
-	StreamErrorRefusedStream
-	StreamErrorCancel
-	StreamErrorCompression
-	StreamErrorConnect
-	StreamErrorEnhanceYourCalm
-	StreamErrorHttp11Required
+	ErrorCodeNoError ErrorCode = iota
+	ErrorCodeProtocol
+	ErrorCodeInternal
+	ErrorCodeFlowControl
+	ErrorCodeSettingsTimeout
+	ErrorCodeStreamClosed
+	ErrorCodeFrameSize
+	ErrorCodeRefusedStream
+	ErrorCodeCancel
+	ErrorCodeCompression
+	ErrorCodeConnect
+	ErrorCodeEnhanceYourCalm
+	ErrorCodeHttp11Required
 )

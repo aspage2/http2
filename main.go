@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"http2/session"
 	"io"
 	"net"
 )
@@ -14,6 +15,16 @@ func Must[T any](v T, err error) T {
 		panic(err)
 	}
 	return v
+}
+
+func Handle(
+	headers map[string][]string,
+	data []byte,
+) (map[string][]string, []byte) {
+	fmt.Println(headers)
+	m := make(map[string][]string)
+	m["Content-Type"] = []string{"text/html"}
+	return m, []byte("<h1>Hello, world</h1>")
 }
 
 func TLSListener(bindAddr string) net.Listener {
@@ -35,7 +46,9 @@ func serverMain(bindAddr string, tls bool) {
 
 	for {
 		conn := Must(listener.Accept())
-		fmt.Println(HandleConnection(conn))
+		srv := session.NewSession(conn, conn)
+		srv.Handle = Handle
+		srv.Serve()
 	}
 }
 

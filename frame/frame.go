@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+// The Sid (or Stream ID) is the HTTP2 stream identifier for 
+// a particular request stream
 type Sid uint32
 
 // FrameHeaders represent the 9-octet metadata header

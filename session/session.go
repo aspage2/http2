@@ -39,24 +39,7 @@ func NewSession(rd io.Reader, wr io.Writer) *Session {
 	return &sess
 }
 
-func (sess *Session) ConsumePreface() error {
-	preface := make([]byte, 24)
-	n, err := io.ReadFull(sess.Incoming, preface)
-	if err != nil {
-		return err
-	}
-	if n != 24 {
-		return UnexpectedPreface
-	}
-	for i, b := range ClientPreface {
-		if b != preface[i] {
-			return UnexpectedPreface
-		}
-	}
-	return nil
-}
-
-func (sess *Session) Serve() error {
+func (sess *Session) initialHandshake() error {
 	if err := sess.ConsumePreface(); err != nil {
 		return err
 	}
@@ -81,7 +64,30 @@ func (sess *Session) Serve() error {
 		fmt.Printf("%s = %d\n", item.Type, item.Value)
 	}
 	globalStream.SendFrame(frame.FrameSettings, STGS_ACK, nil)
+	return nil
+}
 
+func (sess *Session) ConsumePreface() error {
+	preface := make([]byte, 24)
+	n, err := io.ReadFull(sess.Incoming, preface)
+	if err != nil {
+		return err
+	}
+	if n != 24 {
+		return UnexpectedPreface
+	}
+	for i, b := range ClientPreface {
+		if b != preface[i] {
+			return UnexpectedPreface
+		}
+	}
+	return nil
+}
+
+func (sess *Session) Serve() error {
+	if err := sess.initialHandshake(); err != nil {
+		return err
+	}
 	for {
 		fh, data, err := sess.ReadFrame()
 		if err != nil {
@@ -139,7 +145,7 @@ func (sess *Session) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.Fra
 		return nil, nil, fmt.Errorf("expected type %s, got %s", typ, fh.Type)
 	}
 	if fh.Sid != sid {
-		return nil, nil, fmt.Errorf("expected sid %s, got %s", sid, fh.Sid)
+		return nil, nil, fmt.Errorf("expected sid %d, got %d", sid, fh.Sid)
 	}
 	if fh.Length == 0 {
 		return fh, nil, nil
@@ -181,7 +187,7 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		gf := GoawayFrameFromPayload(data)
 		fmt.Println("Received a GOAWAY from client")
 		fmt.Println(gf.String())
-		sess.SendGoaway(sess.lastStream, StreamErrorNoError, "")
+		sess.SendGoaway(sess.lastStream, ErrorCodeNoError, "")
 		return errors.New("client goaway")
 
 	case frame.FrameData:
@@ -207,14 +213,14 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 
 		// Bit 0 is END_STREAM
 		if fh.Flag(0) {
-			st.SetLocalClosed()
+			st.State = StreamStateLocalClosed
 		}
 
 	default:
 		fmt.Printf("Unknown frame\n%s\n%s\n", fh, hex.Dump(data))
 	}
 	st := sess.Stream(fh.Sid)
-	if fh.Sid != 0 && st.IsRemoteClosed() {
+	if fh.Sid != 0 && st.State == StreamStateRemoteClosed {
 		retHeaders, retData := sess.Handle(st.headers, st.data)
 		hl := hpack.NewHeaderList(sess.LookupTable)
 		if retHeaders == nil {
@@ -245,13 +251,13 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 			return nil
 		}
 		st.SendFrame(frame.FrameData, FLAG_END_STREAM, retData)
-		st.SetLocalClosed()
-		sess.SendGoaway(fh.Sid, StreamErrorNoError, "")
+		st.State = StreamStateLocalClosed
+		sess.SendGoaway(fh.Sid, ErrorCodeNoError, "")
 	}
 	return nil
 }
 
-func (sess *Session) SendGoaway(lastSid frame.Sid, code StreamError, message string) {
+func (sess *Session) SendGoaway(lastSid frame.Sid, code ErrorCode, message string) {
 	var gf GoawayFrame
 	gf.LastStreamId = lastSid
 	gf.ErrorCode = code
@@ -305,8 +311,9 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 			sess.LookupTable.Insert(k, v)
 		}
 	}
+	// End Stream
 	if fh.Flag(0) {
-		st.SetRemoteClosed()
+		st.State = StreamStateRemoteClosed
 	}
 	return nil
 }

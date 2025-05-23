@@ -29,7 +29,7 @@ func TestIndexedHeaderEncode(t *testing.T) {
 			data := IndexedHeader(c.C).Encode()
 			assert.Equal(t, len(c.E), len(data))
 
-			for i := 0; i < len(data); i++ {
+			for i := range data {
 				assert.Equal(t, c.E[i], data[i])
 			}
 			assert.NotEqual(t, data[0]&0x80, 0)

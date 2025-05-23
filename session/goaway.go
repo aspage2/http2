@@ -10,14 +10,14 @@ import (
 
 type GoawayFrame struct {
 	LastStreamId frame.Sid
-	ErrorCode    StreamError
+	ErrorCode    ErrorCode
 	DebugInfo    []uint8
 }
 
 func GoawayFrameFromPayload(data []uint8) *GoawayFrame {
 	var ret GoawayFrame
 	ret.LastStreamId = frame.Sid(binary.BigEndian.Uint32(data) & 0x7fffffff)
-	ret.ErrorCode = StreamError(binary.BigEndian.Uint32(data[4:]))
+	ret.ErrorCode = ErrorCode(binary.BigEndian.Uint32(data[4:]))
 	ret.DebugInfo = make([]uint8, len(data)-8)
 	copy(ret.DebugInfo, data[8:])
 	return &ret

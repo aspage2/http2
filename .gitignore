@@ -1,3 +1,4 @@
+*.html
 cov.out
 certs/
 build/

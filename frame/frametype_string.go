@@ -20,7 +20,7 @@ func _() {
 	_ = x[FrameContinuation-9]
 }
 
-const _FrameType_name = "FrameDataFrameHeadersFramePriorityFrameResetStreamFrameSettingsFramePushPromiseFramePingFrameGoAwayFrameWindowUpdateFrameContinuation"
+const _FrameType_name = "FrameDataFrameHeadersFramePriorityFrameResetStreamFrameSettingsFramePushPromiseFramePingFrameGoawayFrameWindowUpdateFrameContinuation"
 
 var _FrameType_index = [...]uint8{0, 9, 21, 34, 50, 63, 79, 88, 99, 116, 133}
 
