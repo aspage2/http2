@@ -3,13 +3,22 @@ package session
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"http2/frame"
 	"http2/hpack"
 	"io"
 )
+
+type ConnError struct {
+	ErrorCode
+	LastSid frame.Sid
+	Reason string
+}
+
+func (ce *ConnError) Error() string {
+	return fmt.Sprintf("%s (last sid %d): %s", ce.ErrorCode, ce.LastSid, ce.Reason)
+}
 
 var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
 var UnexpectedPreface = errors.New("unexpected preface")
@@ -23,10 +32,9 @@ type Session struct {
 	lastStream frame.Sid
 
 	Streams map[frame.Sid]*Stream
-
 	LookupTable *hpack.HeaderLookupTable
 
-	Handle func(map[string][]string, []byte) (map[string][]string, []byte)
+	Handler Handler
 }
 
 func NewSession(rd io.Reader, wr io.Writer) *Session {
@@ -44,6 +52,7 @@ func (sess *Session) initialHandshake() error {
 		return err
 	}
 	globalStream := sess.Stream(0)
+
 	// Server must initiate communications by sending
 	// a settings frame with initial settings. Leave it
 	// empty for now until we implement actual setting
@@ -63,6 +72,7 @@ func (sess *Session) initialHandshake() error {
 	for _, item := range sl.Settings {
 		fmt.Printf("%s = %d\n", item.Type, item.Value)
 	}
+	fmt.Println("-------------------------------")
 	globalStream.SendFrame(frame.FrameSettings, STGS_ACK, nil)
 	return nil
 }
@@ -84,19 +94,36 @@ func (sess *Session) ConsumePreface() error {
 	return nil
 }
 
+// Continue accepting and dispatching packets on this session
+// until the connection closes or an error occurs.
 func (sess *Session) Serve() error {
 	if err := sess.initialHandshake(); err != nil {
+		fmt.Println(err)
 		return err
 	}
+	var (
+		fh *frame.FrameHeader
+		data []byte
+		err error
+	)
 	for {
-		fh, data, err := sess.ReadFrame()
+		fh, data, err = sess.ReadFrame()
 		if err != nil {
-			return err
+			break
 		}
-		if err := sess.Dispatch(fh, data); err != nil {
-			return err
+		fmt.Println(fh)
+		err = sess.Dispatch(fh, data)
+		if err != nil {
+			break
 		}
 	}
+	if err != nil {
+		if ce, ok := err.(*ConnError); ok {
+			sess.SendGoaway(ce.LastSid, ce.ErrorCode, ce.Reason)
+		}
+		return err
+	}
+	return nil
 }
 
 func (sess *Session) readHeader() (*frame.FrameHeader, error) {
@@ -169,7 +196,8 @@ func (sess *Session) Stream(sid frame.Sid) *Stream {
 // Dispatch a frame header and payload to the appropriate handler.
 func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 	// Last stream interacted with for error-sending
-	sess.lastStream = fh.Sid
+	st := sess.Stream(fh.Sid)
+
 	switch fh.Type {
 	case frame.FrameSettings:
 		if fh.Flag(0) {
@@ -208,52 +236,50 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		if err != nil {
 			return err
 		}
-		st := sess.Stream(fh.Sid)
-		st.ExtendData(newData)
+		if _, err := st.Body.Write(newData); err != nil {
+			return err
+		}
 
 		// Bit 0 is END_STREAM
 		if fh.Flag(0) {
-			st.State = StreamStateLocalClosed
-		}
-
-	default:
-		fmt.Printf("Unknown frame\n%s\n%s\n", fh, hex.Dump(data))
-	}
-	st := sess.Stream(fh.Sid)
-	if fh.Sid != 0 && st.State == StreamStateRemoteClosed {
-		retHeaders, retData := sess.Handle(st.headers, st.data)
-		hl := hpack.NewHeaderList(sess.LookupTable)
-		if retHeaders == nil {
-			hl.Put(":status", "201")
-		} else {
-			if _, ok := retHeaders[":status"]; !ok {
-				if retData != nil {
+			st.Body.Close()
+			var resp Response
+			resp.Body = bytes.NewBuffer(nil)
+			sess.Handler.Handle(
+				&Request{Headers: st.InHeaders.Headers, Body: st.Body}, 
+				&resp,
+			)
+			hl := hpack.NewHeaderList(sess.LookupTable)
+			foundStatus := false
+			for _, pair := range resp.Headers {
+				if pair.k == ":status" {
+					foundStatus = true
+				}
+				hl.Put(pair.k, pair.v)
+			}
+			if !foundStatus {
+				if resp.Body.Len() == 0 {
 					hl.Put(":status", "200")
 				} else {
 					hl.Put(":status", "201")
 				}
 			}
-			for k, vs := range retHeaders {
-				if vs == nil {
-					continue
-				}
-				for _, v := range vs {
-					hl.Put(k, v)
-				}
+			flg := FLAG_END_HEADERS
+			if resp.Body.Len() == 0 {
+				flg |= FLAG_END_STREAM
 			}
+			st.SendFrame(frame.FrameHeaders, flg, hl.Dump())
+			data, _ := io.ReadAll(resp.Body)
+			st.SendFrame(frame.FrameData, FLAG_END_STREAM, data)
+			st.State = st.State.SentEndStream()
+			sess.lastStream = fh.Sid
+			return sess.ConnError(ErrorCodeNoError, "")
 		}
-		flg := FLAG_END_HEADERS
-		if retData == nil {
-			flg |= FLAG_END_STREAM
-		}
-		st.SendFrame(frame.FrameHeaders, flg, hl.Dump())
-		if retData == nil {
-			return nil
-		}
-		st.SendFrame(frame.FrameData, FLAG_END_STREAM, retData)
-		st.State = StreamStateLocalClosed
-		sess.SendGoaway(fh.Sid, ErrorCodeNoError, "")
+
+	default:
+		fmt.Println("(I don't know what to do with this frame)")
 	}
+	sess.lastStream = fh.Sid
 	return nil
 }
 
@@ -273,16 +299,21 @@ const (
 	FLAG_PRIORITY    uint8 = 0x20
 )
 
+func (sess *Session) ConnError(code ErrorCode, reason string) error {
+	return &ConnError{
+		ErrorCode: code,
+		LastSid: sess.lastStream,
+		Reason: reason,
+	}
+}
+
 func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 	totRead := 0
 	padLength := 0
 
 	st := sess.Stream(fh.Sid)
-	// End of headers
-	if !fh.Flag(2) {
-		// TODO: This server doesn't support continuation frames yet. fix it!
-		return errors.New("END_OF_HEADERS not set. This server doesn't support continuation")
-	}
+
+	st.State = st.State.ReceivedHeader()
 
 	// Padded
 	if fh.Flag(3) {
@@ -296,24 +327,44 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 		fmt.Printf("STREAM DEPENDENCY: %d --> %d (weight %d)\n", fh.Sid, depSid, weight)
 		totRead += 5
 	}
-	for totRead < len(data)-padLength {
+	tr, err := sess.ReadHeaders(st.InHeaders.Add, data, totRead, padLength)
+	if err != nil {
+		return err
+	}
+	totRead += tr
+	// End Stream
+	if fh.Flag(0) {
+		st.State = st.State.ReceivedEndStream()
+		st.Body.Close()
+	}
+	// End of headers
+	if fh.Flag(2) {
+		st.InHeaders.Closed = true
+	}
+	return nil
+}
+
+func (sess *Session) ReadHeaders(cb func(k, v string), data []byte, totRead int, padLength int) (int, error) {
+	for totRead < len(data) - padLength {
 		hdr, numRead, err := hpack.NextHeader(data[totRead:])
 		if err != nil {
-			return err
+			return 0, err
 		}
 		totRead += numRead
 		k, v, err := hdr.Resolve(sess.LookupTable)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		st.AddHeader(k, v)
+		cb(k, v)
 		if hdr.ShouldIndex() {
 			sess.LookupTable.Insert(k, v)
 		}
 	}
-	// End Stream
-	if fh.Flag(0) {
-		st.State = StreamStateRemoteClosed
-	}
+	return totRead, nil
+}
+
+func (sess *Session) DoRequest(sid frame.Sid) error {
+	stream := sess.Stream(sid)
+	stream.InHeaders.Closed = true
 	return nil
 }

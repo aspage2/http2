@@ -2,10 +2,11 @@ package session
 
 //go:generate stringer -type=ErrorCode
 
-type ErrorCode uint32
+type ErrorCode int32
 
 const (
-	ErrorCodeNoError ErrorCode = iota
+	ErrorCodeUnset ErrorCode = iota - 1
+	ErrorCodeNoError
 	ErrorCodeProtocol
 	ErrorCodeInternal
 	ErrorCodeFlowControl

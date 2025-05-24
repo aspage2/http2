@@ -54,7 +54,7 @@ func SettingsListFromFramePayload(data []uint8) *SettingsList {
 	var ret SettingsList
 	ret.Settings = make([]setting, numSettings)
 	j := 0
-	for i := 0; i < numSettings; i++ {
+	for i := range numSettings {
 		ret.Settings[i].Type = SettingsType(
 			binary.BigEndian.Uint16(data[j : j+2]),
 		)

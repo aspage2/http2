@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -17,14 +16,14 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
-func Handle(
-	headers map[string][]string,
-	data []byte,
-) (map[string][]string, []byte) {
-	fmt.Println(headers)
-	m := make(map[string][]string)
-	m["Content-Type"] = []string{"text/html"}
-	return m, []byte("<h1>Hello, world</h1>")
+func Handle(req *session.Request, resp *session.Response) {
+	fmt.Println(req.Headers)
+	data, err := io.ReadAll(req.Body)
+	if err != nil {
+		fmt.Println("ErRor", err)
+	}
+	fmt.Println(string(data))
+	resp.Body.WriteString("Yes, hello.")
 }
 
 func TLSListener(bindAddr string) net.Listener {
@@ -47,15 +46,11 @@ func serverMain(bindAddr string, tls bool) {
 	for {
 		conn := Must(listener.Accept())
 		srv := session.NewSession(conn, conn)
-		srv.Handle = Handle
+		srv.Handler = session.FuncHandler(Handle)
 		srv.Serve()
 	}
 }
 
-func NestedBuf(rd io.Reader) {
-	buf := bufio.NewReader(rd)
-	fmt.Printf("NestedBuf got this char: %c\n", Must(buf.ReadByte()))
-}
 
 func main() {
 	useTLS := flag.Bool("tls", true, "whether or not to use tls")

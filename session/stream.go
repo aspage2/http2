@@ -3,43 +3,42 @@ package session
 import (
 	"bytes"
 	"http2/frame"
+	"http2/pkg/bodystream"
 	"io"
 )
+
+type Headers struct {
+	Headers []stringpair
+	Closed bool
+}
+
+func (h *Headers) Add(k, v string) {
+	h.Headers = append(h.Headers, stringpair{k, v})
+}
+
+type stringpair struct { k string; v string }
 
 // A stream represents a single two-way channel
 // within a session.
 type Stream struct {
 	Sid     frame.Sid
 	Session *Session
+
 	State StreamState
 
-	headers map[string][]string
-	data    []uint8
-
+	InHeaders *Headers
+	Body *bodystream.BodyStream
 }
+
 
 func NewStream(sid frame.Sid, sess *Session) *Stream {
-	return &Stream{
-		Sid:     sid,
-		Session: sess,
-		headers: make(map[string][]string),
-	}
-}
-
-func (st *Stream) AddHeader(k, v string) {
-	_, ok := st.headers[k]
-	if !ok {
-		st.headers[k] = []string{v}
-	} else {
-		st.headers[k] = append(st.headers[k], v)
-	}
-}
-
-func (st *Stream) ExtendData(data []uint8) {
-	newData := make([]uint8, len(data)+len(st.data))
-	copy(newData, st.data)
-	copy(newData[len(st.data):], data)
-	st.data = newData
+	var s Stream
+	s.Sid = sid
+	s.Session = sess
+	s.State = StreamStateIdle
+	s.InHeaders = new(Headers)
+	s.Body = bodystream.NewBodyStream()
+	return &s
 }
 
 // Send a frame to the client.
