@@ -107,18 +107,14 @@ func (dt *HeaderLookupTable) NextOpen() int {
 }
 
 func (dt *HeaderLookupTable) Lookup(ind int) (string, string, bool) {
-	fmt.Printf("\x1b[32m[INFO]\x1b[0mLooking in header table at index %d\n", ind)
 	ind -= 1
 	if ind < len(StaticTable) {
 		te := StaticTable[ind]
-		fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex %d is in the static table\n", ind)
 		return te.Key, te.Value, true
 	}
 	ind -= len(StaticTable)
 
-	fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex is %d relative to dynamic table\n", ind)
 	if ind < dt.numEntries {
-		fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex %d is in the dynamic table\n", ind)
 		te := dt.entries[dt.Nth(ind)]
 		return te.Key, te.Value, true
 	}
