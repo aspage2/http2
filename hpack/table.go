@@ -24,7 +24,7 @@ type HeaderLookupTable struct {
 
 func NewHeaderLookupTable() *HeaderLookupTable {
 	return &HeaderLookupTable{
-		entries: make([]TableEntry, 0, 32),
+		entries: make([]TableEntry, 32),
 		lo:      0,
 
 		// The number of entries in the table
@@ -88,10 +88,22 @@ func (dt *HeaderLookupTable) Insert(key, value string) bool {
 	for dt.size+s > dt.maxSize {
 		dt.Evict()
 	}
+	if dt.numEntries >= len(dt.entries) {
+		dt.ExpandDynamicTable()
+	}
 	dt.entries[dt.NextOpen()] = te
 	dt.size += s
 	dt.numEntries += 1
 	return true
+}
+
+func (tbl *HeaderLookupTable) ExpandDynamicTable() {
+	newEntries := make([]TableEntry, 2*len(tbl.entries))
+
+	for i := range tbl.numEntries {
+		newEntries[i] = tbl.entries[tbl.Nth(i)]
+	}
+	tbl.lo = 0
 }
 
 func (dt *HeaderLookupTable) Nth(ind int) int {

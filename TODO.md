@@ -1,3 +1,5 @@
+## Hpack lookup table responds to settings.
+I've seen chrome update the max header table size to 16536 (from 4096).
 
 ## Client
 Implement a client that uses HTTP/2.
@@ -20,5 +22,4 @@ back to the user.
 ## Server Examples
 * A file server that can serve static sites.
 * A simple HTTP api with path parsing
-* Server-sent events
 
