@@ -288,7 +288,6 @@ func (sess *Dispatcher) HandleHeader(fh *frame.FrameHeader, data []uint8) error 
 		st.InHeaders.Add(k, v)
 	}, data, totRead, padLength)
 	if err != nil {
-		fmt.Printf("\x1b[31m%s\x1b[0m",err)
 		return err
 	}
 	totRead += tr
@@ -313,7 +312,6 @@ func (sess *Dispatcher) ReadHeaders(cb func(k, v string), data []byte, totRead i
 		if err != nil {
 			return 0, err
 		}
-		fmt.Printf("\x1b[32m[INFO]\x1b[0mProcess header: %s\n", hdr)
 		totRead += numRead
 		k, v, err := hdr.Resolve(sess.Ctx.incomingHeaderTable)
 		if err != nil {
@@ -321,7 +319,6 @@ func (sess *Dispatcher) ReadHeaders(cb func(k, v string), data []byte, totRead i
 		}
 		cb(k, v)
 		if hdr.ShouldIndex() {
-			fmt.Printf("\x1b[31m[INFO]\x1b[0m: INDEX HEADER: %s\n", hdr)
 			sess.Ctx.incomingHeaderTable.Insert(k, v)
 		}
 	}
