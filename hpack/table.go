@@ -24,7 +24,7 @@ type HeaderLookupTable struct {
 
 func NewHeaderLookupTable() *HeaderLookupTable {
 	return &HeaderLookupTable{
-		entries: make([]TableEntry, 16),
+		entries: make([]TableEntry, 0, 32),
 		lo:      0,
 
 		// The number of entries in the table
@@ -32,7 +32,7 @@ func NewHeaderLookupTable() *HeaderLookupTable {
 
 		// Size in octets of this table
 		size:    0,
-		maxSize: 1024,
+		maxSize: 16536,
 	}
 }
 
@@ -52,12 +52,12 @@ func (dt *HeaderLookupTable) SetMaxSize(ms int) {
 }
 
 func (dt *HeaderLookupTable) ForEach(f func(TableEntry)) {
-	for i := 0; i < dt.numEntries; i++ {
+	for i := range dt.numEntries {
 		f(dt.entries[dt.Nth(i)])
 	}
 }
 
-func (dt *HeaderLookupTable) resize() {
+func (dt *HeaderLookupTable) Resize() {
 	newEntries := make([]TableEntry, 2*len(dt.entries))
 	i := 0
 	dt.ForEach(func(te TableEntry) {
@@ -107,14 +107,18 @@ func (dt *HeaderLookupTable) NextOpen() int {
 }
 
 func (dt *HeaderLookupTable) Lookup(ind int) (string, string, bool) {
+	fmt.Printf("\x1b[32m[INFO]\x1b[0mLooking in header table at index %d\n", ind)
 	ind -= 1
 	if ind < len(StaticTable) {
 		te := StaticTable[ind]
+		fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex %d is in the static table\n", ind)
 		return te.Key, te.Value, true
 	}
 	ind -= len(StaticTable)
 
+	fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex is %d relative to dynamic table\n", ind)
 	if ind < dt.numEntries {
+		fmt.Printf("\x1b[32m[INFO]\x1b[0mIndex %d is in the dynamic table\n", ind)
 		te := dt.entries[dt.Nth(ind)]
 		return te.Key, te.Value, true
 	}
@@ -124,7 +128,7 @@ func (dt *HeaderLookupTable) Lookup(ind int) (string, string, bool) {
 func (dt *HeaderLookupTable) String() string {
 	var sb strings.Builder
 
-	fmt.Sprintln(&sb, "----- Dynamic Table -----")
+	fmt.Fprintln(&sb, "----- Dynamic Table -----")
 	dt.ForEach(func(te TableEntry) {
 		fmt.Fprintf(&sb, "[s = %4d] %s: %v\n", te.Size(), te.Key, te.Value)
 	})

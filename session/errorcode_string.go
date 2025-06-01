@@ -8,6 +8,7 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[ErrorCodeUnset - -1]
 	_ = x[ErrorCodeNoError-0]
 	_ = x[ErrorCodeProtocol-1]
 	_ = x[ErrorCodeInternal-2]
@@ -23,13 +24,14 @@ func _() {
 	_ = x[ErrorCodeHttp11Required-12]
 }
 
-const _ErrorCode_name = "ErrorCodeNoErrorErrorCodeProtocolErrorCodeInternalErrorCodeFlowControlErrorCodeSettingsTimeoutErrorCodeStreamClosedErrorCodeFrameSizeErrorCodeRefusedStreamErrorCodeCancelErrorCodeCompressionErrorCodeConnectErrorCodeEnhanceYourCalmErrorCodeHttp11Required"
+const _ErrorCode_name = "ErrorCodeUnsetErrorCodeNoErrorErrorCodeProtocolErrorCodeInternalErrorCodeFlowControlErrorCodeSettingsTimeoutErrorCodeStreamClosedErrorCodeFrameSizeErrorCodeRefusedStreamErrorCodeCancelErrorCodeCompressionErrorCodeConnectErrorCodeEnhanceYourCalmErrorCodeHttp11Required"
 
-var _ErrorCode_index = [...]uint8{0, 16, 33, 50, 70, 94, 115, 133, 155, 170, 190, 206, 230, 253}
+var _ErrorCode_index = [...]uint16{0, 14, 30, 47, 64, 84, 108, 129, 147, 169, 184, 204, 220, 244, 267}
 
 func (i ErrorCode) String() string {
-	if i >= ErrorCode(len(_ErrorCode_index)-1) {
-		return "ErrorCode(" + strconv.FormatInt(int64(i), 10) + ")"
+	i -= -1
+	if i < 0 || i >= ErrorCode(len(_ErrorCode_index)-1) {
+		return "ErrorCode(" + strconv.FormatInt(int64(i+-1), 10) + ")"
 	}
 	return _ErrorCode_name[_ErrorCode_index[i]:_ErrorCode_index[i+1]]
 }

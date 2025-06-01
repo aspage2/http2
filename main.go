@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"http2/session"
-	"io"
 	"net"
+	"os"
+	"strings"
 )
 
 func Must[T any](v T, err error) T {
@@ -16,15 +18,6 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
-func Handle(req *session.Request, resp *session.Response) {
-	fmt.Println(req.Headers)
-	data, err := io.ReadAll(req.Body)
-	if err != nil {
-		fmt.Println("ErRor", err)
-	}
-	fmt.Println(string(data))
-	resp.Body.WriteString("Yes, hello.")
-}
 
 func TLSListener(bindAddr string) net.Listener {
 	cert := Must(tls.LoadX509KeyPair("certs/cert.pem", "certs/key.pem"))
@@ -45,9 +38,70 @@ func serverMain(bindAddr string, tls bool) {
 
 	for {
 		conn := Must(listener.Accept())
-		srv := session.NewSession(conn, conn)
-		srv.Handler = session.FuncHandler(Handle)
-		srv.Serve()
+		fmt.Println("\x1b[31mNEW CONNECTION\x1b[0m")
+		ctx := session.NewConnectionContext(conn, conn, session.FuncHandler(Handle))
+		ctx.Handler = session.FuncHandler(Handle)
+		srv := session.NewDispatcher(ctx)
+		go srv.Serve()
+	}
+}
+
+func Handle(req *session.Request, resp *session.Response) {
+	pth := req.GetHeader(":path")
+	switch pth {
+	case "/":
+		Index(resp)
+	case "/events":
+		Events(resp)
+	default:
+		resp.SetResponseCode(session.NotFound)
+	}
+}
+
+func Index(resp *session.Response) {
+	s := `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SSE Example</title>
+</head>
+<body>
+    <div id="sse-data"></div>
+
+    <script>
+        const eventSource = new EventSource('/events');
+        eventSource.onmessage = function(event) {
+            const dataElement = document.getElementById('sse-data');
+            dataElement.innerHTML += event.data + '<br>';
+        };
+    </script>
+</body>
+</html>
+	`
+	wr := bufio.NewWriter(resp)
+	wr.WriteString(s)
+	wr.Flush()
+}
+
+func Events(resp *session.Response) {
+	resp.SetHeader("Access-Control-Allow-Origin", "*")
+	resp.SetHeader("Access-Control-Expose-Headers", "Content-Type")
+
+	resp.SetHeader("Content-Type", "text/event-stream")
+	resp.SetHeader("Cache-Control", "no-cache")
+	resp.SetHeader("Connection", "keep-alive")
+
+	sc := bufio.NewScanner(os.Stdin)
+
+	fmt.Print("> ")
+	for sc.Scan() {
+		t := strings.TrimSpace(sc.Text())
+		if t == "q" {
+			break
+		}
+		fmt.Fprintf(resp, "data: %s\n\n", t)
+		resp.Flush()
+		fmt.Print("> ")
 	}
 }
 

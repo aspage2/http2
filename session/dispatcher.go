@@ -3,52 +3,37 @@ package session
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"http2/frame"
 	"http2/hpack"
+	"http2/session/settings"
 	"io"
 )
-
-type ConnError struct {
-	ErrorCode
-	LastSid frame.Sid
-	Reason string
-}
-
-func (ce *ConnError) Error() string {
-	return fmt.Sprintf("%s (last sid %d): %s", ce.ErrorCode, ce.LastSid, ce.Reason)
-}
 
 var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
 var UnexpectedPreface = errors.New("unexpected preface")
 
-// A Session object represents an open connection
+// A Dispatcher object represents an open connection
 // between this server and a client.
-type Session struct {
-	Incoming io.Reader
-	Outgoing io.Writer
-
+type Dispatcher struct {
+	Ctx *ConnectionContext
 	lastStream frame.Sid
-
 	Streams map[frame.Sid]*Stream
-	LookupTable *hpack.HeaderLookupTable
-
-	Handler Handler
 }
 
-func NewSession(rd io.Reader, wr io.Writer) *Session {
-	var sess Session
-	sess.Incoming = rd
-	sess.Outgoing = wr
+func NewDispatcher(ctx *ConnectionContext) *Dispatcher {
+	var sess Dispatcher
+	sess.Ctx = ctx
 	sess.lastStream = 0
 	sess.Streams = make(map[frame.Sid]*Stream)
-	sess.LookupTable = hpack.NewHeaderLookupTable()
 	return &sess
 }
 
-func (sess *Session) initialHandshake() error {
-	if err := sess.ConsumePreface(); err != nil {
+func (sess *Dispatcher) initialHandshake() error {
+	err := ConsumePreface(sess.Ctx.incoming)
+	if err != nil {
 		return err
 	}
 	globalStream := sess.Stream(0)
@@ -67,19 +52,17 @@ func (sess *Session) initialHandshake() error {
 	if err != nil {
 		return err
 	}
-	sl := SettingsListFromFramePayload(data)
+	sl := settings.SettingsListFromFramePayload(data)
 	fmt.Println("---(INITIAL CLIENT SETTINGS)---")
-	for _, item := range sl.Settings {
-		fmt.Printf("%s = %d\n", item.Type, item.Value)
-	}
+	fmt.Print(sl)
 	fmt.Println("-------------------------------")
-	globalStream.SendFrame(frame.FrameSettings, STGS_ACK, nil)
+	globalStream.SendFrame(frame.FrameSettings, settings.STGS_ACK, nil)
 	return nil
 }
 
-func (sess *Session) ConsumePreface() error {
+func ConsumePreface(rd io.Reader) error {
 	preface := make([]byte, 24)
-	n, err := io.ReadFull(sess.Incoming, preface)
+	n, err := io.ReadFull(rd, preface)
 	if err != nil {
 		return err
 	}
@@ -96,7 +79,7 @@ func (sess *Session) ConsumePreface() error {
 
 // Continue accepting and dispatching packets on this session
 // until the connection closes or an error occurs.
-func (sess *Session) Serve() error {
+func (sess *Dispatcher) Serve() error {
 	if err := sess.initialHandshake(); err != nil {
 		fmt.Println(err)
 		return err
@@ -111,7 +94,6 @@ func (sess *Session) Serve() error {
 		if err != nil {
 			break
 		}
-		fmt.Println(fh)
 		err = sess.Dispatch(fh, data)
 		if err != nil {
 			break
@@ -119,6 +101,7 @@ func (sess *Session) Serve() error {
 	}
 	if err != nil {
 		if ce, ok := err.(*ConnError); ok {
+			fmt.Printf("\x1b[32mERROR ERROR\x1b[0m %s\n", ce)
 			sess.SendGoaway(ce.LastSid, ce.ErrorCode, ce.Reason)
 		}
 		return err
@@ -126,18 +109,18 @@ func (sess *Session) Serve() error {
 	return nil
 }
 
-func (sess *Session) readHeader() (*frame.FrameHeader, error) {
+func (sess *Dispatcher) readHeader() (*frame.FrameHeader, error) {
 	fh := new(frame.FrameHeader)
-	err := fh.Unmarshal(sess.Incoming)
+	err := fh.Unmarshal(sess.Ctx.incoming)
 	if err != nil {
 		return nil, err
 	}
 	return fh, nil
 }
 
-func (sess *Session) readPayload(n uint32) ([]uint8, error) {
+func (sess *Dispatcher) readPayload(n uint32) ([]uint8, error) {
 	data := make([]uint8, n)
-	_, err := io.ReadFull(sess.Incoming, data)
+	_, err := io.ReadFull(sess.Ctx.incoming, data)
 	if err != nil {
 		return nil, err
 	}
@@ -148,11 +131,12 @@ func (sess *Session) readPayload(n uint32) ([]uint8, error) {
 // frame header object + the frame payload if nonzero. If
 // the frame doesn't have a payload, ReadFrame returns a nil
 // slice.
-func (sess *Session) ReadFrame() (*frame.FrameHeader, []uint8, error) {
+func (sess *Dispatcher) ReadFrame() (*frame.FrameHeader, []uint8, error) {
 	fh, err := sess.readHeader()
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Printf("\x1b[33mReceive Frame\x1b[0m %s\n", fh)
 	if fh.Length == 0 {
 		return fh, nil, nil
 	}
@@ -160,14 +144,16 @@ func (sess *Session) ReadFrame() (*frame.FrameHeader, []uint8, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Println(hex.Dump(data[:min(len(data), 1024)]))
 	return fh, data, nil
 }
 
-func (sess *Session) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.FrameHeader, []uint8, error) {
+func (sess *Dispatcher) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.FrameHeader, []uint8, error) {
 	fh, err := sess.readHeader()
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Printf("\x1b[33mReceive Frame\x1b[0m %s\n", fh)
 	if fh.Type != typ {
 		return nil, nil, fmt.Errorf("expected type %s, got %s", typ, fh.Type)
 	}
@@ -181,20 +167,21 @@ func (sess *Session) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.Fra
 	if err != nil {
 		return nil, nil, err
 	}
+	fmt.Println(hex.Dump(data[:min(len(data), 1024)]))
 	return fh, data, nil
 }
 
-func (sess *Session) Stream(sid frame.Sid) *Stream {
+func (sess *Dispatcher) Stream(sid frame.Sid) *Stream {
 	if st, ok := sess.Streams[sid]; ok {
 		return st
 	}
-	st := NewStream(sid, sess)
+	st := NewStream(sid, sess.Ctx)
 	sess.Streams[sid] = st
 	return st
 }
 
 // Dispatch a frame header and payload to the appropriate handler.
-func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
+func (sess *Dispatcher) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 	// Last stream interacted with for error-sending
 	st := sess.Stream(fh.Sid)
 
@@ -204,7 +191,7 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 			return nil
 		}
 		// Must acknowledge new settings frame
-		sess.Stream(0).SendFrame(frame.FrameSettings, STGS_ACK, nil)
+		sess.Stream(0).SendFrame(frame.FrameSettings, settings.STGS_ACK, nil)
 
 	case frame.FrameHeaders:
 		if err := sess.HandleHeader(fh, data); err != nil {
@@ -212,9 +199,6 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		}
 
 	case frame.FrameGoaway:
-		gf := GoawayFrameFromPayload(data)
-		fmt.Println("Received a GOAWAY from client")
-		fmt.Println(gf.String())
 		sess.SendGoaway(sess.lastStream, ErrorCodeNoError, "")
 		return errors.New("client goaway")
 
@@ -243,37 +227,8 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 		// Bit 0 is END_STREAM
 		if fh.Flag(0) {
 			st.Body.Close()
-			var resp Response
-			resp.Body = bytes.NewBuffer(nil)
-			sess.Handler.Handle(
-				&Request{Headers: st.InHeaders.Headers, Body: st.Body}, 
-				&resp,
-			)
-			hl := hpack.NewHeaderList(sess.LookupTable)
-			foundStatus := false
-			for _, pair := range resp.Headers {
-				if pair.k == ":status" {
-					foundStatus = true
-				}
-				hl.Put(pair.k, pair.v)
-			}
-			if !foundStatus {
-				if resp.Body.Len() == 0 {
-					hl.Put(":status", "200")
-				} else {
-					hl.Put(":status", "201")
-				}
-			}
-			flg := FLAG_END_HEADERS
-			if resp.Body.Len() == 0 {
-				flg |= FLAG_END_STREAM
-			}
-			st.SendFrame(frame.FrameHeaders, flg, hl.Dump())
-			data, _ := io.ReadAll(resp.Body)
-			st.SendFrame(frame.FrameData, FLAG_END_STREAM, data)
-			st.State = st.State.SentEndStream()
 			sess.lastStream = fh.Sid
-			return sess.ConnError(ErrorCodeNoError, "")
+			return nil
 		}
 
 	default:
@@ -283,7 +238,7 @@ func (sess *Session) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 	return nil
 }
 
-func (sess *Session) SendGoaway(lastSid frame.Sid, code ErrorCode, message string) {
+func (sess *Dispatcher) SendGoaway(lastSid frame.Sid, code ErrorCode, message string) {
 	var gf GoawayFrame
 	gf.LastStreamId = lastSid
 	gf.ErrorCode = code
@@ -299,7 +254,7 @@ const (
 	FLAG_PRIORITY    uint8 = 0x20
 )
 
-func (sess *Session) ConnError(code ErrorCode, reason string) error {
+func (sess *Dispatcher) ConnError(code ErrorCode, reason string) error {
 	return &ConnError{
 		ErrorCode: code,
 		LastSid: sess.lastStream,
@@ -307,7 +262,7 @@ func (sess *Session) ConnError(code ErrorCode, reason string) error {
 	}
 }
 
-func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
+func (sess *Dispatcher) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 	totRead := 0
 	padLength := 0
 
@@ -318,52 +273,63 @@ func (sess *Session) HandleHeader(fh *frame.FrameHeader, data []uint8) error {
 	// Padded
 	if fh.Flag(3) {
 		padLength = int(data[0])
+		fmt.Printf("\x1b[32m(Flag)\x1b[0m Padding %d\n", padLength)
 		totRead += 1
 	}
 	// Priority
 	if fh.Flag(5) {
 		depSid := binary.BigEndian.Uint32(data[totRead:])
 		weight := data[totRead+4]
-		fmt.Printf("STREAM DEPENDENCY: %d --> %d (weight %d)\n", fh.Sid, depSid, weight)
+		fmt.Printf("\x1b[32m(Flag)\x1b[0m STREAM DEPENDENCY: %d --> %d (weight %d)\n", fh.Sid, depSid, weight)
 		totRead += 5
 	}
-	tr, err := sess.ReadHeaders(st.InHeaders.Add, data, totRead, padLength)
+	tr, err := sess.ReadHeaders(func (k, v string) { 
+		fmt.Printf("%s = %s\n", k, v)
+		st.InHeaders.Add(k, v)
+	}, data, totRead, padLength)
 	if err != nil {
+		fmt.Printf("\x1b[31m%s\x1b[0m",err)
 		return err
 	}
 	totRead += tr
 	// End Stream
 	if fh.Flag(0) {
+		fmt.Printf("\x1b[32m(Flag)\x1b[0m End Stream\n")
 		st.State = st.State.ReceivedEndStream()
 		st.Body.Close()
 	}
 	// End of headers
 	if fh.Flag(2) {
+		fmt.Printf("\x1b[32m(Flag)\x1b[0m End Headers\n")
 		st.InHeaders.Closed = true
+		go st.Serve(sess.Ctx)
 	}
 	return nil
 }
 
-func (sess *Session) ReadHeaders(cb func(k, v string), data []byte, totRead int, padLength int) (int, error) {
+func (sess *Dispatcher) ReadHeaders(cb func(k, v string), data []byte, totRead int, padLength int) (int, error) {
 	for totRead < len(data) - padLength {
 		hdr, numRead, err := hpack.NextHeader(data[totRead:])
 		if err != nil {
 			return 0, err
 		}
+		fmt.Printf("\x1b[32m[INFO]\x1b[0mProcess header: %s\n", hdr)
 		totRead += numRead
-		k, v, err := hdr.Resolve(sess.LookupTable)
+		k, v, err := hdr.Resolve(sess.Ctx.incomingHeaderTable)
 		if err != nil {
 			return 0, err
 		}
 		cb(k, v)
 		if hdr.ShouldIndex() {
-			sess.LookupTable.Insert(k, v)
+			fmt.Printf("\x1b[31m[INFO]\x1b[0m: INDEX HEADER: %s\n", hdr)
+			sess.Ctx.incomingHeaderTable.Insert(k, v)
 		}
 	}
+	fmt.Println(sess.Ctx.incomingHeaderTable)
 	return totRead, nil
 }
 
-func (sess *Session) DoRequest(sid frame.Sid) error {
+func (sess *Dispatcher) DoRequest(sid frame.Sid) error {
 	stream := sess.Stream(sid)
 	stream.InHeaders.Closed = true
 	return nil
