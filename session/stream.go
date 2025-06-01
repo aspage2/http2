@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"http2/frame"
 	"http2/pkg/bodystream"
-	"io"
 )
 
 type Headers struct {
@@ -22,7 +21,8 @@ type stringpair struct { k string; v string }
 // within a session.
 type Stream struct {
 	Sid     frame.Sid
-	Session *Session
+
+	Context *ConnectionContext
 
 	State StreamState
 
@@ -31,10 +31,10 @@ type Stream struct {
 }
 
 
-func NewStream(sid frame.Sid, sess *Session) *Stream {
+func NewStream(sid frame.Sid, ctx *ConnectionContext) *Stream {
 	var s Stream
 	s.Sid = sid
-	s.Session = sess
+	s.Context = ctx
 	s.State = StreamStateIdle
 	s.InHeaders = new(Headers)
 	s.Body = bodystream.NewBodyStream()
@@ -50,12 +50,27 @@ func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) 
 	fh.Type = typ
 	fh.Length = uint32(len(data))
 
-	if err := fh.Marshal(stream.Session.Outgoing); err != nil {
-		return err
-	}
-	if data == nil || len(data) == 0 {
-		return nil
-	}
-	_, err := io.Copy(stream.Session.Outgoing, bytes.NewReader(data))
-	return err
+	return stream.Context.SendFrame(fh, data)
 }
+
+func (stream *Stream) Serve(ctx *ConnectionContext) {
+	req := &Request{
+		Body: stream.Body,
+		Headers: stream.InHeaders.Headers,
+	}
+	resp := &Response{
+		body: bytes.NewBuffer(nil),
+		stream: stream,
+	}
+	ctx.Handler.Handle(req, resp)
+	l := resp.body.Len()
+	if !resp.headersSent {
+		resp.sendHeaders(l <= 0)
+	}
+	if l > 0 {
+		resp.Flush()
+	} else {
+		resp.stream.SendFrame(frame.FrameData, FLAG_END_STREAM, nil)
+	}
+}
+
