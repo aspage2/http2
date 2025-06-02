@@ -1,14 +1,13 @@
 package main
 
 import (
-	"strings"
-	"os"
 	"bufio"
 	"fmt"
 	"http2/pkg/bodystream"
 	"io"
+	"os"
+	"strings"
 )
-
 
 func consumer(bs *bodystream.BodyStream, doneC chan struct{}) {
 	defer close(doneC)
@@ -19,7 +18,7 @@ func consumer(bs *bodystream.BodyStream, doneC chan struct{}) {
 		return
 	}
 
-	fmt.Println("MESSAGE: ",string(data))
+	fmt.Println("MESSAGE: ", string(data))
 }
 
 func main() {
@@ -41,7 +40,7 @@ func main() {
 	if err := sc.Err(); err != nil {
 		fmt.Println("Error: ", err)
 		close(doneC)
-	} 
+	}
 	bs.Close()
 
 	<-doneC

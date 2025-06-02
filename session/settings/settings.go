@@ -114,7 +114,7 @@ func (sl *SettingsList) String() string {
 		InitialWindowSize,
 		MaxFrameSize,
 		MaxHeaderListSize,
-	}	
+	}
 
 	for _, t := range typs {
 		v, ok := sl.Get(t)

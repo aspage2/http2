@@ -18,7 +18,6 @@ func Must[T any](v T, err error) T {
 	return v
 }
 
-
 func TLSListener(bindAddr string) net.Listener {
 	cert := Must(tls.LoadX509KeyPair("certs/cert.pem", "certs/key.pem"))
 	var cfg tls.Config
@@ -104,7 +103,6 @@ func Events(resp *session.Response) {
 		fmt.Print("> ")
 	}
 }
-
 
 func main() {
 	useTLS := flag.Bool("tls", true, "whether or not to use tls")

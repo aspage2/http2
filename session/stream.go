@@ -8,28 +8,30 @@ import (
 
 type Headers struct {
 	Headers []stringpair
-	Closed bool
+	Closed  bool
 }
 
 func (h *Headers) Add(k, v string) {
 	h.Headers = append(h.Headers, stringpair{k, v})
 }
 
-type stringpair struct { k string; v string }
+type stringpair struct {
+	k string
+	v string
+}
 
 // A stream represents a single two-way channel
 // within a session.
 type Stream struct {
-	Sid     frame.Sid
+	Sid frame.Sid
 
 	Context *ConnectionContext
 
 	State StreamState
 
 	InHeaders *Headers
-	Body *bodystream.BodyStream
+	Body      *bodystream.BodyStream
 }
-
 
 func NewStream(sid frame.Sid, ctx *ConnectionContext) *Stream {
 	var s Stream
@@ -55,11 +57,11 @@ func (stream *Stream) SendFrame(typ frame.FrameType, flags uint8, data []uint8) 
 
 func (stream *Stream) Serve(ctx *ConnectionContext) {
 	req := &Request{
-		Body: stream.Body,
+		Body:    stream.Body,
 		Headers: stream.InHeaders.Headers,
 	}
 	resp := &Response{
-		body: bytes.NewBuffer(nil),
+		body:   bytes.NewBuffer(nil),
 		stream: stream,
 	}
 	ctx.Handler.Handle(req, resp)
@@ -73,4 +75,3 @@ func (stream *Stream) Serve(ctx *ConnectionContext) {
 		resp.stream.SendFrame(frame.FrameData, FLAG_END_STREAM, nil)
 	}
 }
-
