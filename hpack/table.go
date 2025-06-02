@@ -104,6 +104,7 @@ func (tbl *HeaderLookupTable) ExpandDynamicTable() {
 		newEntries[i] = tbl.entries[tbl.Nth(i)]
 	}
 	tbl.lo = 0
+	tbl.entries = newEntries
 }
 
 func (dt *HeaderLookupTable) Nth(ind int) int {

@@ -230,7 +230,10 @@ func (sess *Dispatcher) Dispatch(fh *frame.FrameHeader, data []uint8) error {
 			sess.lastStream = fh.Sid
 			return nil
 		}
-
+	case frame.FrameWindowUpdate:
+		d := binary.BigEndian.Uint32(data[:4])
+		d &= ^uint32(1 << 31)
+		fmt.Printf("Client can receive an extra \x1b[33m%d\x1b[0m octets\n", d)
 	default:
 		fmt.Println("(I don't know what to do with this frame)")
 	}
