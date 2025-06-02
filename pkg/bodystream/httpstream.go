@@ -52,4 +52,3 @@ func (st *BodyStream) Write(data []byte) (int, error) {
 	st.cv.Signal()
 	return ret, err
 }
-

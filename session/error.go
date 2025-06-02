@@ -32,10 +32,9 @@ type ConnError struct {
 	// The Error code
 	ErrorCode
 	LastSid frame.Sid
-	Reason string
+	Reason  string
 }
 
 func (ce *ConnError) Error() string {
 	return fmt.Sprintf("%s (last sid %d): %s", ce.ErrorCode, ce.LastSid, ce.Reason)
 }
-

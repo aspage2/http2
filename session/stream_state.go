@@ -15,7 +15,6 @@ const (
 	StreamStateClosed
 )
 
-
 func (ss StreamState) ReceivedHeader() StreamState {
 	switch ss {
 	case StreamStateIdle:
@@ -59,5 +58,3 @@ func (ss StreamState) SentEndStream() StreamState {
 func (ss StreamState) SentRstStream() StreamState {
 	return StreamStateClosed
 }
-
-

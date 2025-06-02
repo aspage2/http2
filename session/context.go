@@ -16,11 +16,11 @@ import (
 // connection.
 type ConnectionContext struct {
 	context.Context
-	incoming io.Reader
+	incoming            io.Reader
 	incomingHeaderTable *hpack.HeaderLookupTable
 
-	outlock *sync.Mutex
-	outgoing io.Writer
+	outlock             *sync.Mutex
+	outgoing            io.Writer
 	outgoingHeadertable *hpack.HeaderLookupTable
 
 	cancel context.CancelFunc
@@ -34,15 +34,15 @@ func NewConnectionContext(in io.Reader, out io.Writer, handler Handler) *Connect
 	ctx, cancel := context.WithCancel(context.Background())
 
 	ret := &ConnectionContext{
-		incoming: in,
+		incoming:            in,
 		incomingHeaderTable: hpack.NewHeaderLookupTable(),
 
-		outgoing: out,
-		outlock: new(sync.Mutex),
+		outgoing:            out,
+		outlock:             new(sync.Mutex),
 		outgoingHeadertable: hpack.NewHeaderLookupTable(),
 
 		Context: ctx,
-		cancel: cancel,
+		cancel:  cancel,
 
 		Handler: handler,
 	}
@@ -66,5 +66,3 @@ func (this *ConnectionContext) SendFrame(fh *frame.FrameHeader, data []byte) err
 	_, err := io.Copy(this.outgoing, bytes.NewReader(data))
 	return err
 }
-
-

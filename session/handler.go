@@ -11,39 +11,38 @@ import (
 	"strconv"
 )
 
-
 type HttpCode int
 
 const (
 	CodeUnset = 0
 
-	Ok = 200
-	Created = 201
-	Accepted = 202
+	Ok               = 200
+	Created          = 201
+	Accepted         = 202
 	NonAuthoritative = 203
-	NoContent = 204
-	ResetContent = 205
-	PartialContent = 206
+	NoContent        = 204
+	ResetContent     = 205
+	PartialContent   = 206
 
-	Moved = 301
-	NotModified = 304
+	Moved             = 301
+	NotModified       = 304
 	TemporaryRedirect = 307
 	PermanentRedirect = 308
 
-	BadRequest = 400
-	Unauthorized = 401
-	PaymentRequired = 402
-	Forbidden = 403
-	NotFound = 404
+	BadRequest       = 400
+	Unauthorized     = 401
+	PaymentRequired  = 402
+	Forbidden        = 403
+	NotFound         = 404
 	MethodNotAllowed = 405
 
-	ServerError = 500
+	ServerError    = 500
 	NotImplemented = 501
 )
 
 type Request struct {
 	Headers []stringpair
-	Body *bodystream.BodyStream
+	Body    *bodystream.BodyStream
 }
 
 func (req *Request) GetHeader(k string) string {
@@ -56,11 +55,11 @@ func (req *Request) GetHeader(k string) string {
 }
 
 type Response struct {
-	Code HttpCode
+	Code        HttpCode
 	headersSent bool
-	headers []stringpair
-	body *bytes.Buffer
-	stream *Stream
+	headers     []stringpair
+	body        *bytes.Buffer
+	stream      *Stream
 }
 
 func (res *Response) SetHeader(k, v string) {
@@ -108,7 +107,7 @@ func (res *Response) Write(data []byte) (n int, err error) {
 	}
 	if res.body.Len() > int(maxFrameSize) {
 		res.Flush()
-	} 
+	}
 	return
 }
 

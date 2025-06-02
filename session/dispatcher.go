@@ -18,9 +18,9 @@ var UnexpectedPreface = errors.New("unexpected preface")
 // A Dispatcher object represents an open connection
 // between this server and a client.
 type Dispatcher struct {
-	Ctx *ConnectionContext
+	Ctx        *ConnectionContext
 	lastStream frame.Sid
-	Streams map[frame.Sid]*Stream
+	Streams    map[frame.Sid]*Stream
 }
 
 func NewDispatcher(ctx *ConnectionContext) *Dispatcher {
@@ -85,9 +85,9 @@ func (sess *Dispatcher) Serve() error {
 		return err
 	}
 	var (
-		fh *frame.FrameHeader
+		fh   *frame.FrameHeader
 		data []byte
-		err error
+		err  error
 	)
 	for {
 		fh, data, err = sess.ReadFrame()
@@ -260,8 +260,8 @@ const (
 func (sess *Dispatcher) ConnError(code ErrorCode, reason string) error {
 	return &ConnError{
 		ErrorCode: code,
-		LastSid: sess.lastStream,
-		Reason: reason,
+		LastSid:   sess.lastStream,
+		Reason:    reason,
 	}
 }
 
@@ -286,7 +286,7 @@ func (sess *Dispatcher) HandleHeader(fh *frame.FrameHeader, data []uint8) error 
 		fmt.Printf("\x1b[32m(Flag)\x1b[0m STREAM DEPENDENCY: %d --> %d (weight %d)\n", fh.Sid, depSid, weight)
 		totRead += 5
 	}
-	tr, err := sess.ReadHeaders(func (k, v string) { 
+	tr, err := sess.ReadHeaders(func(k, v string) {
 		fmt.Printf("%s = %s\n", k, v)
 		st.InHeaders.Add(k, v)
 	}, data, totRead, padLength)
@@ -310,7 +310,7 @@ func (sess *Dispatcher) HandleHeader(fh *frame.FrameHeader, data []uint8) error 
 }
 
 func (sess *Dispatcher) ReadHeaders(cb func(k, v string), data []byte, totRead int, padLength int) (int, error) {
-	for totRead < len(data) - padLength {
+	for totRead < len(data)-padLength {
 		hdr, numRead, err := hpack.NextHeader(data[totRead:])
 		if err != nil {
 			return 0, err

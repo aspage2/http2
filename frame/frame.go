@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// The Sid (or Stream ID) is the HTTP2 stream identifier for 
+// The Sid (or Stream ID) is the HTTP2 stream identifier for
 // a particular request stream
 type Sid uint32
 
