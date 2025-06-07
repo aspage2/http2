@@ -2,57 +2,55 @@ package frame
 
 import (
 	"bytes"
-	"io"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFrameHeader_Flags(t *testing.T) {
-	fh := new(FrameHeader)
-
-	fh.Flags = 0b00101000
-
-	for i := 0; i < 8; i++ {
-		if i == 5 || i == 3 {
-			assert.True(t, fh.Flag(i))
-		} else {
-			assert.False(t, fh.Flag(i))
-		}
-	}
-}
 
 func TestFrameHeaderUnmarshal(t *testing.T) {
-	var flags uint8 = 0b00010100
-	var typ FrameType = FrameHeaders
+	data := "\x00\x00\x0a\x01\xaa\x00\x00\xab\xcd"
 
-	//            |---- 1337 ------|                  |--------- 420 ---------|
-	data := []byte{0x00, 0x05, 0x39, uint8(typ), flags, 0x00, 0x00, 0x01, 0xa4}
+	var fh FrameHeader
+	fh.Unmarshal(strings.NewReader(data))
 
-	fh := new(FrameHeader)
-	assert.NoError(t, fh.Unmarshal(bytes.NewReader(data)))
-
-	assert.Equal(t, uint32(1337), fh.Length)
-	assert.Equal(t, typ, fh.Type)
-	assert.Equal(t, flags, fh.Flags)
-	assert.Equal(t, Sid(420), fh.Sid)
+	assert.EqualValues(t, 10, fh.Length)
+	assert.EqualValues(t, FrameHeaders, fh.Type)
+	assert.EqualValues(t, 0b10101010, fh.Flags)
+	assert.EqualValues(t, Sid(0xabcd), fh.Sid)
 }
 
 func TestFrameHeaderMarshal(t *testing.T) {
-	fh := new(FrameHeader)
+	var fh FrameHeader
 
-	fh.Sid = 0xfabb1208
-	fh.Type = FrameHeaders
-	fh.Flags = 0b101
-	fh.Length = 255
+	fh.Sid = 33
+	fh.Flags = 0b00001000
+	fh.Type = FrameWindowUpdate
+	fh.Length = 20
 
-	var buf bytes.Buffer
+	buf := bytes.NewBuffer(nil)
+	assert.NoError(t, fh.Marshal(buf))
 
-	assert.NoError(t, fh.Marshal(&buf))
-	data, _ := io.ReadAll(&buf)
+	assert.EqualValues(t, "\x00\x00\x14\x08\x08\x00\x00\x00\x21", buf.Bytes())
+}
 
-	exp := []byte{0x00, 0x00, 0xff, uint8(FrameHeaders), 0b101, 0xfa, 0xbb, 0x12, 0x08}
-	for i := 0; i < 9; i++ {
-		assert.Equal(t, exp[i], data[i])
+func TestFrameHeaderFlag(t *testing.T) {
+	var fh FrameHeader
+
+	fh.Flags = 0b00100001
+
+	exp := []bool{true, false, false, false, false, true, false, false}
+
+	for i := range exp {
+		assert.Equal(t, exp[i], fh.Flag(i))
 	}
+}
+
+func TestFrameHeaderFlagPanic(t *testing.T) {
+	var fh FrameHeader
+
+	assert.Panics(t, func() {
+		fh.Flag(100)
+	})
 }

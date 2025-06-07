@@ -12,6 +12,15 @@ import (
 // a particular request stream
 type Sid uint32
 
+// Stream IDs are only 31 bits wide, allowing us to utilize
+// the last bit as a control signal
+const AnySid = (1 << 31)
+
+type Frame struct {
+	FrameHeader *FrameHeader
+	Data        []byte
+}
+
 // FrameHeaders represent the 9-octet metadata header
 // that heads each HTTP frame.
 type FrameHeader struct {

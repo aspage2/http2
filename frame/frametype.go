@@ -16,4 +16,6 @@ const (
 	FrameGoaway
 	FrameWindowUpdate
 	FrameContinuation
+
+	AnyFrame FrameType = 0xff
 )

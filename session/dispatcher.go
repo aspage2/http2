@@ -3,36 +3,33 @@ package session
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"http2/frame"
 	"http2/hpack"
 	"http2/session/settings"
-	"io"
 )
-
-var ClientPreface = []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
-var UnexpectedPreface = errors.New("unexpected preface")
 
 // A Dispatcher object represents an open connection
 // between this server and a client.
 type Dispatcher struct {
+	Framer     *frame.Framer
 	Ctx        *ConnectionContext
 	lastStream frame.Sid
 	Streams    map[frame.Sid]*Stream
 }
 
-func NewDispatcher(ctx *ConnectionContext) *Dispatcher {
+func NewDispatcher(ctx *ConnectionContext, framer *frame.Framer) *Dispatcher {
 	var sess Dispatcher
 	sess.Ctx = ctx
+	sess.Framer = framer
 	sess.lastStream = 0
 	sess.Streams = make(map[frame.Sid]*Stream)
 	return &sess
 }
 
 func (sess *Dispatcher) initialHandshake() error {
-	err := ConsumePreface(sess.Ctx.incoming)
+	err := sess.Framer.ConsumePreface()
 	if err != nil {
 		return err
 	}
@@ -48,32 +45,17 @@ func (sess *Dispatcher) initialHandshake() error {
 
 	// Client will also send their initial settings.
 	// receive and acknowledge the frame.
-	_, data, err := sess.ExpectFrame(frame.FrameSettings, 0)
+	fr, ok, err := sess.ExpectFrame(frame.FrameSettings, 0)
 	if err != nil {
 		return err
+	} else if !ok {
+		return errors.New("Unexpected frame")
 	}
-	sl := settings.SettingsListFromFramePayload(data)
+	sl := settings.SettingsListFromFramePayload(fr.Data)
 	fmt.Println("---(INITIAL CLIENT SETTINGS)---")
 	fmt.Print(sl)
 	fmt.Println("-------------------------------")
 	globalStream.SendFrame(frame.FrameSettings, settings.STGS_ACK, nil)
-	return nil
-}
-
-func ConsumePreface(rd io.Reader) error {
-	preface := make([]byte, 24)
-	n, err := io.ReadFull(rd, preface)
-	if err != nil {
-		return err
-	}
-	if n != 24 {
-		return UnexpectedPreface
-	}
-	for i, b := range ClientPreface {
-		if b != preface[i] {
-			return UnexpectedPreface
-		}
-	}
 	return nil
 }
 
@@ -85,16 +67,15 @@ func (sess *Dispatcher) Serve() error {
 		return err
 	}
 	var (
-		fh   *frame.FrameHeader
-		data []byte
-		err  error
+		fr  *frame.Frame
+		err error
 	)
 	for {
-		fh, data, err = sess.ReadFrame()
+		fr, err = sess.Framer.ReadFrame()
 		if err != nil {
 			break
 		}
-		err = sess.Dispatch(fh, data)
+		err = sess.Dispatch(fr)
 		if err != nil {
 			break
 		}
@@ -109,66 +90,12 @@ func (sess *Dispatcher) Serve() error {
 	return nil
 }
 
-func (sess *Dispatcher) readHeader() (*frame.FrameHeader, error) {
-	fh := new(frame.FrameHeader)
-	err := fh.Unmarshal(sess.Ctx.incoming)
+func (sess *Dispatcher) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.Frame, bool, error) {
+	fr, err := sess.Framer.ReadFrame()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return fh, nil
-}
-
-func (sess *Dispatcher) readPayload(n uint32) ([]uint8, error) {
-	data := make([]uint8, n)
-	_, err := io.ReadFull(sess.Ctx.incoming, data)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
-}
-
-// Read a frame from the incoming connection. Returns the
-// frame header object + the frame payload if nonzero. If
-// the frame doesn't have a payload, ReadFrame returns a nil
-// slice.
-func (sess *Dispatcher) ReadFrame() (*frame.FrameHeader, []uint8, error) {
-	fh, err := sess.readHeader()
-	if err != nil {
-		return nil, nil, err
-	}
-	fmt.Printf("\x1b[33mReceive Frame\x1b[0m %s\n", fh)
-	if fh.Length == 0 {
-		return fh, nil, nil
-	}
-	data, err := sess.readPayload(fh.Length)
-	if err != nil {
-		return nil, nil, err
-	}
-	fmt.Println(hex.Dump(data[:min(len(data), 1024)]))
-	return fh, data, nil
-}
-
-func (sess *Dispatcher) ExpectFrame(typ frame.FrameType, sid frame.Sid) (*frame.FrameHeader, []uint8, error) {
-	fh, err := sess.readHeader()
-	if err != nil {
-		return nil, nil, err
-	}
-	fmt.Printf("\x1b[33mReceive Frame\x1b[0m %s\n", fh)
-	if fh.Type != typ {
-		return nil, nil, fmt.Errorf("expected type %s, got %s", typ, fh.Type)
-	}
-	if fh.Sid != sid {
-		return nil, nil, fmt.Errorf("expected sid %d, got %d", sid, fh.Sid)
-	}
-	if fh.Length == 0 {
-		return fh, nil, nil
-	}
-	data, err := sess.readPayload(fh.Length)
-	if err != nil {
-		return nil, nil, err
-	}
-	fmt.Println(hex.Dump(data[:min(len(data), 1024)]))
-	return fh, data, nil
+	return fr, typ == fr.FrameHeader.Type && sid == fr.FrameHeader.Sid, nil
 }
 
 func (sess *Dispatcher) Stream(sid frame.Sid) *Stream {
@@ -181,7 +108,9 @@ func (sess *Dispatcher) Stream(sid frame.Sid) *Stream {
 }
 
 // Dispatch a frame header and payload to the appropriate handler.
-func (sess *Dispatcher) Dispatch(fh *frame.FrameHeader, data []uint8) error {
+func (sess *Dispatcher) Dispatch(fr *frame.Frame) error {
+	fh := fr.FrameHeader
+	data := fr.Data
 	// Last stream interacted with for error-sending
 	st := sess.Stream(fh.Sid)
 

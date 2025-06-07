@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"http2/frame"
 	"http2/session"
 	"net"
 	"os"
@@ -40,7 +41,7 @@ func serverMain(bindAddr string, tls bool) {
 		fmt.Println("\x1b[31mNEW CONNECTION\x1b[0m")
 		ctx := session.NewConnectionContext(conn, conn, session.FuncHandler(Handle))
 		ctx.Handler = session.FuncHandler(Handle)
-		srv := session.NewDispatcher(ctx)
+		srv := session.NewDispatcher(ctx, frame.NewFramer(conn))
 		go srv.Serve()
 	}
 }
